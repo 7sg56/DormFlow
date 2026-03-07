@@ -1,6 +1,6 @@
 -- ============================================================
 -- HOSTEL MANAGEMENT SYSTEM — VIEWS (V2 Schema)
--- Run AFTER init.sql and data.sql
+-- Run AFTER 01_init.sql and 02_data.sql
 -- Computed columns (age, is_active, days_open, etc.) are
 -- calculated here since MySQL 8 disallows CURDATE() in
 -- STORED generated columns.
