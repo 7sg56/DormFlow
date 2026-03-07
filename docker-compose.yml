@@ -6,13 +6,19 @@ services:
     container_name: hostel_db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${DB_NAME:-hostel_db}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-hostel}
+      MYSQL_DATABASE: ${DB_NAME:-hostel_mgmt_1nf}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - db_data:/var/lib/mysql
       - ./backend/db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-hostel}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - hostel_network
 
@@ -27,11 +33,12 @@ services:
     environment:
       - DB_HOST=${DB_HOST:-db}
       - DB_USER=${DB_USER:-root}
-      - DB_PASSWORD=${DB_PASSWORD:-rootpassword}
-      - DB_NAME=${DB_NAME:-hostel_db}
+      - DB_PASSWORD=${DB_PASSWORD:-hostel}
+      - DB_NAME=${DB_NAME:-hostel_mgmt_1nf}
       - PORT=${PORT:-5001}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - hostel_network
 
