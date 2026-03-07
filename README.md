@@ -28,7 +28,7 @@ A client-server application bootstrapped with Docker Compose.
 
 3.  **Access the Application**:
     - Frontend: http://localhost:3000
-    - Backend API: http://localhost:5000
+    - Backend API: http://localhost:5001
     - Database: Exposed on port 3306
 
 ## Development Setup

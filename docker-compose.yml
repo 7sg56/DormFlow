@@ -23,13 +23,13 @@ services:
     container_name: hostel_backend
     restart: always
     ports:
-      - "${PORT:-5000}:${PORT:-5000}"
+      - "${PORT:-5001}:${PORT:-5001}"
     environment:
       - DB_HOST=${DB_HOST:-db}
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-rootpassword}
       - DB_NAME=${DB_NAME:-hostel_db}
-      - PORT=${PORT:-5000}
+      - PORT=${PORT:-5001}
     depends_on:
       - db
     networks:
@@ -44,7 +44,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+      - NEXT_PUBLIC_API_URL=http://localhost:5001/api
     depends_on:
       - backend
     networks:
