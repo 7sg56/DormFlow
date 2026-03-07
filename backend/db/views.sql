@@ -1,6 +1,9 @@
 -- ============================================================
 -- HOSTEL MANAGEMENT SYSTEM — VIEWS (V2 Schema)
--- Run AFTER init.sql and seed data
+-- Run AFTER init.sql and data.sql
+-- Computed columns (age, is_active, days_open, etc.) are
+-- calculated here since MySQL 8 disallows CURDATE() in
+-- STORED generated columns.
 -- ============================================================
 
 USE hostel_mgmt_1nf;
@@ -13,7 +16,7 @@ SELECT
     s.student_id,
     s.reg_no,
     s.full_name,
-    s.age,
+    TIMESTAMPDIFF(YEAR, s.date_of_birth, CURDATE()) AS age,
     s.gender,
     s.phone_primary,
     s.email_personal,
@@ -25,7 +28,7 @@ SELECT
     s.blood_group,
     s.status,
     s.admission_date,
-    s.years_in_hostel,
+    TIMESTAMPDIFF(YEAR, s.admission_date, CURDATE()) AS years_in_hostel,
     h.hostel_name,
     h.type           AS hostel_type,
     r.room_number,
@@ -33,7 +36,9 @@ SELECT
     b.bed_number
 FROM student s
 LEFT JOIN hostel h        ON s.hostel_id   = h.hostel_id
-LEFT JOIN allocation a    ON s.student_id  = a.student_id AND a.is_active = TRUE
+LEFT JOIN allocation a    ON s.student_id  = a.student_id
+                          AND (a.end_date IS NULL OR a.end_date >= CURDATE())
+                          AND a.status = 'Active'
 LEFT JOIN room r          ON a.room_id     = r.room_id
 LEFT JOIN bed b           ON a.bed_id      = b.bed_id;
 
@@ -78,7 +83,7 @@ SELECT
     SUM(f.balance_due)                                      AS total_balance,
     SUM(CASE WHEN f.status = 'Paid'    THEN 1 ELSE 0 END)  AS paid_count,
     SUM(CASE WHEN f.status = 'Pending' THEN 1 ELSE 0 END)  AS pending_count,
-    SUM(CASE WHEN f.is_overdue = TRUE  THEN 1 ELSE 0 END)  AS overdue_count
+    SUM(CASE WHEN f.due_date < CURDATE() AND f.paid_amount < f.amount_due THEN 1 ELSE 0 END) AS overdue_count
 FROM student s
 JOIN hostel h      ON s.hostel_id  = h.hostel_id
 LEFT JOIN feepayment f ON s.student_id = f.student_id
@@ -97,7 +102,9 @@ SELECT
     c.complaint_type,
     c.priority,
     c.status,
-    c.days_open,
+    IF(c.resolved_at IS NOT NULL,
+       DATEDIFF(c.resolved_at, c.created_at),
+       DATEDIFF(CURDATE(), c.created_at))           AS days_open,
     c.is_resolved,
     c.cost_incurred,
     t.name           AS technician_name,
@@ -129,7 +136,9 @@ SELECT
 FROM hostel h
 LEFT JOIN room       r ON h.hostel_id = r.hostel_id
 LEFT JOIN bed        b ON r.room_id   = b.room_id
-LEFT JOIN allocation a ON b.bed_id    = a.bed_id AND a.is_active = TRUE
+LEFT JOIN allocation a ON b.bed_id    = a.bed_id
+                       AND (a.end_date IS NULL OR a.end_date >= CURDATE())
+                       AND a.status = 'Active'
 LEFT JOIN student    s ON a.student_id= s.student_id
 LEFT JOIN complaint  c ON h.hostel_id = c.hostel_id
 LEFT JOIN facility   f ON h.hostel_id = f.hostel_id
@@ -171,7 +180,8 @@ SELECT
     SUM(CASE WHEN c.is_resolved = FALSE THEN 1 ELSE 0 END)         AS pending,
     ROUND(SUM(CASE WHEN c.is_resolved = TRUE THEN 1 ELSE 0 END) /
           NULLIF(COUNT(c.complaint_id), 0) * 100, 2)               AS resolution_rate_pct,
-    ROUND(AVG(CASE WHEN c.is_resolved = TRUE THEN c.days_open END), 1) AS avg_days_to_resolve,
+    ROUND(AVG(CASE WHEN c.is_resolved = TRUE THEN
+          DATEDIFF(c.resolved_at, c.created_at) END), 1)           AS avg_days_to_resolve,
     SUM(c.cost_incurred)                                            AS total_cost_incurred
 FROM technician t
 LEFT JOIN complaint c ON t.technician_id = c.technician_id
