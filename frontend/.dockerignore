@@ -1,0 +1,8 @@
+node_modules/
+.git/
+.env
+.next/
+out/
+Dockerfile
+docker-compose.yml
+README.md
