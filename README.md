@@ -33,7 +33,13 @@ A client-server application bootstrapped with Docker Compose.
 
 ## Development Setup
 
-The `db` initialization script is located in `backend/db/init.sql`. It will run automatically the first time the database container starts. If you modify it, you might need to wipe your Docker volumes to re-run it:
+The database initialization scripts are in `backend/db/` and run automatically (in alphabetical order) the first time the database container starts:
+
+- `01_init.sql` — Schema creation (29 tables)
+- `02_data.sql` — Seed data
+- `03_views.sql` — Views
+
+If you modify any of these, wipe Docker volumes to re-run initialization:
 
 ```bash
 docker-compose down -v
