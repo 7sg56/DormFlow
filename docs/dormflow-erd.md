@@ -26,9 +26,7 @@ erDiagram
         VARCHAR reg_no
         VARCHAR first_name
         VARCHAR last_name
-        VARCHAR full_name
         DATE date_of_birth
-        INT age
         VARCHAR gender
         VARCHAR phone_primary
         VARCHAR phone_secondary
@@ -44,9 +42,7 @@ erDiagram
         VARCHAR city
         VARCHAR state
         VARCHAR pincode
-        CHAR hostel_id FK
         DATE admission_date
-        INT years_in_hostel
         VARCHAR status
         VARCHAR photo_url
     }
@@ -81,7 +77,6 @@ erDiagram
         VARCHAR bed_type
         VARCHAR condition_status
         BOOLEAN occupied
-        BOOLEAN is_available
         DATE purchase_date
         DATE last_replaced
     }
@@ -103,12 +98,8 @@ erDiagram
         CHAR allocation_id PK
         CHAR student_id FK
         CHAR bed_id FK
-        CHAR room_id FK
-        CHAR hostel_id FK
         DATE start_date
         DATE end_date
-        INT duration_days
-        BOOLEAN is_active
         VARCHAR allocated_by
         TEXT reason
         VARCHAR status
@@ -116,7 +107,6 @@ erDiagram
     feepayment {
         CHAR payment_id PK
         CHAR student_id FK
-        CHAR hostel_id FK
         DECIMAL amount_due
         DECIMAL paid_amount
         DECIMAL balance_due
@@ -126,8 +116,6 @@ erDiagram
         VARCHAR transaction_id
         DATETIME payment_date
         DATE due_date
-        BOOLEAN is_overdue
-        INT days_overdue
         DECIMAL late_fee
         VARCHAR receipt_number
         VARCHAR status
@@ -208,7 +196,6 @@ erDiagram
     accesslog {
         CHAR log_id PK
         CHAR student_id FK
-        CHAR hostel_id FK
         DATETIME entry_time
         DATETIME exit_time
         INT duration_minutes
@@ -248,7 +235,6 @@ erDiagram
     complaint {
         CHAR complaint_id PK
         CHAR student_id FK
-        CHAR hostel_id FK
         CHAR room_id FK
         CHAR technician_id FK
         TEXT description
@@ -256,7 +242,6 @@ erDiagram
         VARCHAR priority
         VARCHAR status
         DATETIME resolved_at
-        INT days_open
         BOOLEAN is_resolved
         TEXT resolution_notes
         DECIMAL cost_incurred
@@ -268,7 +253,6 @@ erDiagram
         VARCHAR id_proof_type
         VARCHAR id_proof_number
         CHAR student_id FK
-        CHAR hostel_id FK
         CHAR room_id FK
         VARCHAR relation_to_student
         TEXT purpose
@@ -400,7 +384,6 @@ erDiagram
         CHAR request_id PK
         CHAR student_id FK
         CHAR ambulance_id FK
-        CHAR hostel_id FK
         DATETIME request_time
         DATETIME pickup_time
         DATETIME hospital_reached_time
@@ -411,20 +394,14 @@ erDiagram
         TEXT notes
     }
 
-    hostel ||--o{ student : "accommodates"
     hostel ||--o{ room : "contains"
     hostel ||--o{ mess : "runs"
     hostel ||--o{ laundry : "provides"
     hostel ||--o{ facility : "offers"
     hostel ||--o{ store : "has"
-    hostel ||--o{ accesslog : "monitors"
-    hostel ||--o{ visitor_log : "records"
     hostel ||--o{ notice_board : "posts"
     hostel ||--o{ maintenance_schedule : "plans"
-    hostel ||--o{ feepayment : "collects"
-    hostel ||--o{ complaint : "receives"
     hostel ||--o{ technician : "employs"
-    hostel ||--o{ emergency_request : "responds"
     student ||--o{ student_guardian : "has"
     student ||--o{ allocation : "assigned"
     student ||--o{ feepayment : "pays"
@@ -439,7 +416,6 @@ erDiagram
     student ||--o{ gym_membership : "enrolls"
     student ||--o{ emergency_request : "calls"
     room ||--o{ bed : "contains"
-    room ||--o{ allocation : "assigned"
     room ||--o{ complaint : "about"
     bed ||--o{ allocation : "reserved"
     technician ||--o{ complaint : "resolves"
