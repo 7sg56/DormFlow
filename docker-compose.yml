@@ -7,7 +7,7 @@ services:
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-hostel}
-      MYSQL_DATABASE: ${DB_NAME:-hostel_mgmt_1nf}
+      MYSQL_DATABASE: ${DB_NAME:-hostel_mgmt_3nf}
     ports:
       - "3307:3306"
     volumes:
@@ -34,7 +34,7 @@ services:
       - DB_HOST=${DB_HOST:-db}
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-hostel}
-      - DB_NAME=${DB_NAME:-hostel_mgmt_1nf}
+      - DB_NAME=${DB_NAME:-hostel_mgmt_3nf}
       - PORT=${PORT:-5001}
     depends_on:
       db:
