@@ -59,5 +59,3 @@ services:
 networks:
   hostel_network:
     driver: bridge
-
-volumes:
