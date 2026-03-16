@@ -1,18 +1,30 @@
 -- ============================================================
--- HOSTEL MANAGEMENT SYSTEM — 1NF SCHEMA V2
+-- HOSTEL MANAGEMENT SYSTEM — 3NF SCHEMA
 -- MySQL 8.0+ | UUID Primary Keys | 29 Tables
--- All FK constraints defined inline at table creation
--- Tables ordered: parents before children
+-- Changes from 1NF version:
+--   1. student.hostel_id           REMOVED  (derive via allocation)
+--   2. student.full_name           REMOVED  (transitive: first+last → full)
+--   3. allocation.hostel_id        REMOVED  (derive via bed→room→hostel)
+--   4. allocation.room_id          REMOVED  (derive via bed→room)
+--   5. feepayment.hostel_id        REMOVED  (derive via student→hostel)
+--   6. complaint.hostel_id         REMOVED  (derive via student→hostel)
+--   7. visitor_log.hostel_id       REMOVED  (derive via student→hostel)
+--   8. accesslog.hostel_id         REMOVED  (derive via student→hostel)
+--   9. emergency_request.hostel_id REMOVED  (derive via student→hostel)
+--  10. bed.is_available            REMOVED  (exact inverse of occupied)
+-- All removed hostel_id FKs are restored in views (03_views.sql)
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS hostel_mgmt_1nf
+DROP DATABASE IF EXISTS hostel_mgmt;
+CREATE DATABASE IF NOT EXISTS hostel_mgmt
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE hostel_mgmt_1nf;
+USE hostel_mgmt;
 
 -- ============================================================
 -- TABLE 1: hostel
+-- (unchanged — no violations here)
 -- ============================================================
 CREATE TABLE hostel (
     hostel_id           CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -36,13 +48,14 @@ CREATE TABLE hostel (
 
 -- ============================================================
 -- TABLE 2: student
+-- REMOVED: hostel_id  (student's hostel is determined by allocation)
+-- REMOVED: full_name  (first_name + last_name → full_name is transitive)
 -- ============================================================
 CREATE TABLE student (
     student_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     reg_no              VARCHAR(50)     NOT NULL UNIQUE,
     first_name          VARCHAR(100)    NOT NULL,
     last_name           VARCHAR(100)    NOT NULL,
-    full_name           VARCHAR(201)    AS (CONCAT(first_name, ' ', last_name)) STORED,
     date_of_birth       DATE            NOT NULL,
     gender              VARCHAR(10)     NOT NULL,
     phone_primary       VARCHAR(15),
@@ -59,17 +72,16 @@ CREATE TABLE student (
     city                VARCHAR(100),
     state               VARCHAR(100),
     pincode             VARCHAR(10),
-    hostel_id           CHAR(36),
     admission_date      DATE,
     status              VARCHAR(20)     DEFAULT 'Active',
     photo_url           VARCHAR(255),
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_std_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE SET NULL
+    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- ============================================================
--- TABLE 3: student_guardian  (1NF: multi-value guardians)
+-- TABLE 3: student_guardian
+-- (unchanged)
 -- ============================================================
 CREATE TABLE student_guardian (
     guardian_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -85,6 +97,7 @@ CREATE TABLE student_guardian (
 
 -- ============================================================
 -- TABLE 4: room
+-- (unchanged — hostel_id here is a direct attribute, not transitive)
 -- ============================================================
 CREATE TABLE room (
     room_id             CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -107,6 +120,10 @@ CREATE TABLE room (
 
 -- ============================================================
 -- TABLE 5: bed
+-- REMOVED: is_available  (NOT occupied is trivially derived — storing it
+--                         creates a transitive dependency: bed_id → occupied
+--                         → is_available, and risks the two columns
+--                         getting out of sync)
 -- ============================================================
 CREATE TABLE bed (
     bed_id              CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -115,7 +132,6 @@ CREATE TABLE bed (
     bed_type            VARCHAR(50),
     condition_status    VARCHAR(50)     DEFAULT 'Good',
     occupied            BOOLEAN         DEFAULT FALSE,
-    is_available        BOOLEAN         AS (NOT occupied) STORED,
     purchase_date       DATE,
     last_replaced       DATE,
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
@@ -126,6 +142,7 @@ CREATE TABLE bed (
 
 -- ============================================================
 -- TABLE 6: technician
+-- (unchanged)
 -- ============================================================
 CREATE TABLE technician (
     technician_id       CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -147,13 +164,14 @@ CREATE TABLE technician (
 
 -- ============================================================
 -- TABLE 7: allocation
+-- REMOVED: hostel_id  (bed → room → hostel, so hostel_id is transitive)
+-- REMOVED: room_id    (bed → room, so room_id is transitive via bed_id)
+-- To get room/hostel for an allocation: JOIN bed → room → hostel
 -- ============================================================
 CREATE TABLE allocation (
     allocation_id       CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     student_id          CHAR(36)        NOT NULL,
     bed_id              CHAR(36)        NOT NULL,
-    room_id             CHAR(36)        NOT NULL,
-    hostel_id           CHAR(36)        NOT NULL,
     start_date          DATE            NOT NULL,
     end_date            DATE,
     allocated_by        VARCHAR(100),
@@ -162,18 +180,17 @@ CREATE TABLE allocation (
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_alloc_student FOREIGN KEY (student_id) REFERENCES student(student_id),
-    CONSTRAINT fk_alloc_bed     FOREIGN KEY (bed_id)     REFERENCES bed(bed_id),
-    CONSTRAINT fk_alloc_room    FOREIGN KEY (room_id)    REFERENCES room(room_id),
-    CONSTRAINT fk_alloc_hostel  FOREIGN KEY (hostel_id)  REFERENCES hostel(hostel_id)
+    CONSTRAINT fk_alloc_bed     FOREIGN KEY (bed_id)     REFERENCES bed(bed_id)
 );
 
 -- ============================================================
 -- TABLE 8: feepayment
+-- REMOVED: hostel_id  (student_id → hostel_id via student table,
+--                      so storing it here is a transitive dependency)
 -- ============================================================
 CREATE TABLE feepayment (
     payment_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     student_id          CHAR(36)        NOT NULL,
-    hostel_id           CHAR(36)        NOT NULL,
     amount_due          DECIMAL(10,2)   NOT NULL,
     paid_amount         DECIMAL(10,2)   DEFAULT 0,
     balance_due         DECIMAL(10,2)   AS (amount_due - IFNULL(paid_amount, 0)) STORED,
@@ -190,12 +207,12 @@ CREATE TABLE feepayment (
     approved_by         VARCHAR(100),
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_fp_student FOREIGN KEY (student_id) REFERENCES student(student_id),
-    CONSTRAINT fk_fp_hostel  FOREIGN KEY (hostel_id)  REFERENCES hostel(hostel_id)
+    CONSTRAINT fk_fp_student FOREIGN KEY (student_id) REFERENCES student(student_id)
 );
 
 -- ============================================================
 -- TABLE 9: mess
+-- (unchanged)
 -- ============================================================
 CREATE TABLE mess (
     mess_id             CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -221,6 +238,7 @@ CREATE TABLE mess (
 
 -- ============================================================
 -- TABLE 10: mess_subscription
+-- (unchanged)
 -- ============================================================
 CREATE TABLE mess_subscription (
     subscription_id     CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -239,6 +257,7 @@ CREATE TABLE mess_subscription (
 
 -- ============================================================
 -- TABLE 11: menu
+-- (unchanged)
 -- ============================================================
 CREATE TABLE menu (
     menu_id             CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -257,6 +276,7 @@ CREATE TABLE menu (
 
 -- ============================================================
 -- TABLE 12: laundry
+-- (unchanged)
 -- ============================================================
 CREATE TABLE laundry (
     laundry_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -280,6 +300,7 @@ CREATE TABLE laundry (
 
 -- ============================================================
 -- TABLE 13: laundry_request
+-- (unchanged)
 -- ============================================================
 CREATE TABLE laundry_request (
     request_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -302,11 +323,12 @@ CREATE TABLE laundry_request (
 
 -- ============================================================
 -- TABLE 14: accesslog
+-- REMOVED: hostel_id  (student_id → hostel_id via active allocation,
+--                      storing it here is transitive)
 -- ============================================================
 CREATE TABLE accesslog (
     log_id              CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     student_id          CHAR(36)        NOT NULL,
-    hostel_id           CHAR(36)        NOT NULL,
     entry_time          DATETIME        NOT NULL,
     exit_time           DATETIME,
     duration_minutes    INT             AS (IF(exit_time IS NOT NULL, TIMESTAMPDIFF(MINUTE, entry_time, exit_time), NULL)) STORED,
@@ -317,12 +339,12 @@ CREATE TABLE accesslog (
     purpose             VARCHAR(100),
     remarks             TEXT,
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_al_student FOREIGN KEY (student_id) REFERENCES student(student_id),
-    CONSTRAINT fk_al_hostel  FOREIGN KEY (hostel_id)  REFERENCES hostel(hostel_id)
+    CONSTRAINT fk_al_student FOREIGN KEY (student_id) REFERENCES student(student_id)
 );
 
 -- ============================================================
 -- TABLE 15: facility
+-- (unchanged)
 -- ============================================================
 CREATE TABLE facility (
     facility_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -345,6 +367,7 @@ CREATE TABLE facility (
 
 -- ============================================================
 -- TABLE 16: facility_booking
+-- (unchanged)
 -- ============================================================
 CREATE TABLE facility_booking (
     booking_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -363,11 +386,13 @@ CREATE TABLE facility_booking (
 
 -- ============================================================
 -- TABLE 17: complaint
+-- REMOVED: hostel_id  (student_id → hostel via allocation; also
+--                      room_id → hostel via room.hostel_id — both
+--                      paths make hostel_id here transitive)
 -- ============================================================
 CREATE TABLE complaint (
     complaint_id        CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     student_id          CHAR(36)        NOT NULL,
-    hostel_id           CHAR(36)        NOT NULL,
     room_id             CHAR(36),
     technician_id       CHAR(36),
     description         TEXT            NOT NULL,
@@ -381,13 +406,13 @@ CREATE TABLE complaint (
     resolution_notes    TEXT,
     cost_incurred       DECIMAL(10,2)   DEFAULT 0,
     CONSTRAINT fk_comp_student FOREIGN KEY (student_id)    REFERENCES student(student_id),
-    CONSTRAINT fk_comp_hostel  FOREIGN KEY (hostel_id)     REFERENCES hostel(hostel_id),
     CONSTRAINT fk_comp_room    FOREIGN KEY (room_id)       REFERENCES room(room_id)            ON DELETE SET NULL,
     CONSTRAINT fk_comp_tech    FOREIGN KEY (technician_id) REFERENCES technician(technician_id) ON DELETE SET NULL
 );
 
 -- ============================================================
 -- TABLE 18: visitor_log
+-- REMOVED: hostel_id  (student_id → hostel via allocation — transitive)
 -- ============================================================
 CREATE TABLE visitor_log (
     visitor_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -396,7 +421,6 @@ CREATE TABLE visitor_log (
     id_proof_type       VARCHAR(50),
     id_proof_number     VARCHAR(100),
     student_id          CHAR(36)        NOT NULL,
-    hostel_id           CHAR(36)        NOT NULL,
     room_id             CHAR(36),
     relation_to_student VARCHAR(50),
     purpose             TEXT,
@@ -408,12 +432,12 @@ CREATE TABLE visitor_log (
     approved_by         VARCHAR(100),
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_vl_student FOREIGN KEY (student_id) REFERENCES student(student_id),
-    CONSTRAINT fk_vl_hostel  FOREIGN KEY (hostel_id)  REFERENCES hostel(hostel_id),
     CONSTRAINT fk_vl_room    FOREIGN KEY (room_id)    REFERENCES room(room_id) ON DELETE SET NULL
 );
 
 -- ============================================================
 -- TABLE 19: notice_board
+-- (unchanged)
 -- ============================================================
 CREATE TABLE notice_board (
     notice_id           CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -431,6 +455,7 @@ CREATE TABLE notice_board (
 
 -- ============================================================
 -- TABLE 20: maintenance_schedule
+-- (unchanged)
 -- ============================================================
 CREATE TABLE maintenance_schedule (
     schedule_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -450,7 +475,8 @@ CREATE TABLE maintenance_schedule (
 );
 
 -- ============================================================
--- TABLE 21: store  (hostel-level convenience store)
+-- TABLE 21: store
+-- (unchanged)
 -- ============================================================
 CREATE TABLE store (
     store_id            CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -468,7 +494,8 @@ CREATE TABLE store (
 );
 
 -- ============================================================
--- TABLE 22: store_purchase  (student purchases from store)
+-- TABLE 22: store_purchase
+-- (unchanged)
 -- ============================================================
 CREATE TABLE store_purchase (
     purchase_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -484,7 +511,8 @@ CREATE TABLE store_purchase (
 );
 
 -- ============================================================
--- TABLE 23: pharmacy  (campus-wide, serves all hostels)
+-- TABLE 23: pharmacy
+-- (unchanged)
 -- ============================================================
 CREATE TABLE pharmacy (
     pharmacy_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -503,7 +531,8 @@ CREATE TABLE pharmacy (
 );
 
 -- ============================================================
--- TABLE 24: pharmacy_visit  (student visits to pharmacy)
+-- TABLE 24: pharmacy_visit
+-- (unchanged)
 -- ============================================================
 CREATE TABLE pharmacy_visit (
     visit_id            CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -519,7 +548,8 @@ CREATE TABLE pharmacy_visit (
 );
 
 -- ============================================================
--- TABLE 25: restaurant  (campus/hostel restaurant, distinct from mess)
+-- TABLE 25: restaurant
+-- (unchanged)
 -- ============================================================
 CREATE TABLE restaurant (
     restaurant_id       CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -539,7 +569,8 @@ CREATE TABLE restaurant (
 );
 
 -- ============================================================
--- TABLE 26: gym  (campus/hostel gym)
+-- TABLE 26: gym
+-- (unchanged)
 -- ============================================================
 CREATE TABLE gym (
     gym_id              CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -558,7 +589,8 @@ CREATE TABLE gym (
 );
 
 -- ============================================================
--- TABLE 27: gym_membership  (student gym memberships)
+-- TABLE 27: gym_membership
+-- (unchanged)
 -- ============================================================
 CREATE TABLE gym_membership (
     membership_id       CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -575,7 +607,8 @@ CREATE TABLE gym_membership (
 );
 
 -- ============================================================
--- TABLE 28: ambulance_service  (emergency vehicles)
+-- TABLE 28: ambulance_service
+-- (unchanged)
 -- ============================================================
 CREATE TABLE ambulance_service (
     ambulance_id        CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -592,13 +625,13 @@ CREATE TABLE ambulance_service (
 );
 
 -- ============================================================
--- TABLE 29: emergency_request  (student emergency ambulance requests)
+-- TABLE 29: emergency_request
+-- REMOVED: hostel_id  (student_id → hostel via allocation — transitive)
 -- ============================================================
 CREATE TABLE emergency_request (
     request_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     student_id          CHAR(36)        NOT NULL,
     ambulance_id        CHAR(36),
-    hostel_id           CHAR(36)        NOT NULL,
     request_time        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     pickup_time         DATETIME,
     hospital_reached_time DATETIME,
@@ -609,6 +642,5 @@ CREATE TABLE emergency_request (
     notes               TEXT,
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_er_student   FOREIGN KEY (student_id)   REFERENCES student(student_id),
-    CONSTRAINT fk_er_ambulance FOREIGN KEY (ambulance_id) REFERENCES ambulance_service(ambulance_id) ON DELETE SET NULL,
-    CONSTRAINT fk_er_hostel    FOREIGN KEY (hostel_id)    REFERENCES hostel(hostel_id)
+    CONSTRAINT fk_er_ambulance FOREIGN KEY (ambulance_id) REFERENCES ambulance_service(ambulance_id) ON DELETE SET NULL
 );
