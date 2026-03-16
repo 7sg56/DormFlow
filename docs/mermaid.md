@@ -1,6 +1,8 @@
 # Hostel Management System -- ER Diagram
 
-## Schema: 29 Tables | MySQL 8.0+ | UUID Primary Keys
+## Schema: 32 Tables | 3NF | MySQL 8.0+ | UUID v4 Primary Keys
+
+> Redundant hostel_id / room_id columns removed from activity tables (allocation, feepayment, complaint, accesslog, visitor_log, emergency_request). Transitive dependencies eliminated. Derived fields use STORED computed columns.
 
 ```mermaid
 erDiagram
@@ -20,15 +22,15 @@ erDiagram
         VARCHAR warden_email
         VARCHAR office_phone
         VARCHAR emergency_phone
+        DATETIME created_at
+        DATETIME updated_at
     }
     student {
         CHAR student_id PK
         VARCHAR reg_no
         VARCHAR first_name
         VARCHAR last_name
-        VARCHAR full_name
         DATE date_of_birth
-        INT age
         VARCHAR gender
         VARCHAR phone_primary
         VARCHAR phone_secondary
@@ -44,11 +46,11 @@ erDiagram
         VARCHAR city
         VARCHAR state
         VARCHAR pincode
-        CHAR hostel_id FK
         DATE admission_date
-        INT years_in_hostel
         VARCHAR status
         VARCHAR photo_url
+        DATETIME created_at
+        DATETIME updated_at
     }
     student_guardian {
         CHAR guardian_id PK
@@ -73,6 +75,8 @@ erDiagram
         VARCHAR room_condition
         DATE last_cleaned
         DATE last_maintained
+        DATETIME created_at
+        DATETIME updated_at
     }
     bed {
         CHAR bed_id PK
@@ -81,9 +85,10 @@ erDiagram
         VARCHAR bed_type
         VARCHAR condition_status
         BOOLEAN occupied
-        BOOLEAN is_available
         DATE purchase_date
         DATE last_replaced
+        DATETIME created_at
+        DATETIME updated_at
     }
     technician {
         CHAR technician_id PK
@@ -98,41 +103,40 @@ erDiagram
         DECIMAL salary
         VARCHAR vendor_company
         CHAR hostel_id FK
+        DATETIME created_at
+        DATETIME updated_at
     }
     allocation {
         CHAR allocation_id PK
         CHAR student_id FK
         CHAR bed_id FK
-        CHAR room_id FK
-        CHAR hostel_id FK
         DATE start_date
         DATE end_date
-        INT duration_days
-        BOOLEAN is_active
         VARCHAR allocated_by
         TEXT reason
         VARCHAR status
+        DATETIME created_at
+        DATETIME updated_at
     }
     feepayment {
         CHAR payment_id PK
         CHAR student_id FK
-        CHAR hostel_id FK
         DECIMAL amount_due
         DECIMAL paid_amount
-        DECIMAL balance_due
+        DECIMAL balance_due "STORED computed"
         VARCHAR semester
         VARCHAR fee_month
         VARCHAR payment_mode
         VARCHAR transaction_id
         DATETIME payment_date
         DATE due_date
-        BOOLEAN is_overdue
-        INT days_overdue
         DECIMAL late_fee
         VARCHAR receipt_number
         VARCHAR status
         TEXT remarks
         VARCHAR approved_by
+        DATETIME created_at
+        DATETIME updated_at
     }
     mess {
         CHAR mess_id PK
@@ -151,6 +155,8 @@ erDiagram
         VARCHAR timing_lunch
         VARCHAR timing_snacks
         VARCHAR timing_dinner
+        DATETIME created_at
+        DATETIME updated_at
     }
     mess_subscription {
         CHAR subscription_id PK
@@ -161,6 +167,8 @@ erDiagram
         VARCHAR meal_plan
         DECIMAL monthly_charge
         VARCHAR status
+        DATETIME created_at
+        DATETIME updated_at
     }
     menu {
         CHAR menu_id PK
@@ -172,6 +180,8 @@ erDiagram
         VARCHAR cuisine_type
         BOOLEAN is_veg
         INT calories_approx
+        DATETIME created_at
+        DATETIME updated_at
     }
     laundry {
         CHAR laundry_id PK
@@ -188,7 +198,8 @@ erDiagram
         TIME timing_close
         DATE contract_start
         DATE contract_end
-        BOOLEAN is_contract_active
+        DATETIME created_at
+        DATETIME updated_at
     }
     laundry_request {
         CHAR request_id PK
@@ -196,7 +207,6 @@ erDiagram
         CHAR laundry_id FK
         DATE pickup_date
         DATE delivery_date
-        INT turnaround_days
         TEXT items_description
         INT total_pieces
         DECIMAL total_weight_kg
@@ -204,20 +214,22 @@ erDiagram
         VARCHAR service_type
         VARCHAR status
         VARCHAR payment_status
+        DATETIME created_at
+        DATETIME updated_at
     }
     accesslog {
         CHAR log_id PK
         CHAR student_id FK
-        CHAR hostel_id FK
         DATETIME entry_time
         DATETIME exit_time
-        INT duration_minutes
-        BOOLEAN is_overnight
+        INT duration_minutes "STORED computed"
+        BOOLEAN is_overnight "STORED computed"
         BOOLEAN is_late_entry
         VARCHAR gate_number
         VARCHAR guard_name
         VARCHAR purpose
         TEXT remarks
+        DATETIME created_at
     }
     facility {
         CHAR facility_id PK
@@ -233,6 +245,8 @@ erDiagram
         VARCHAR condition_status
         DATE last_maintained
         BOOLEAN is_operational
+        DATETIME created_at
+        DATETIME updated_at
     }
     facility_booking {
         CHAR booking_id PK
@@ -241,23 +255,24 @@ erDiagram
         DATE booking_date
         TIME slot_start
         TIME slot_end
-        INT duration_minutes
+        INT duration_minutes "STORED computed"
         VARCHAR purpose
         VARCHAR status
+        DATETIME created_at
     }
     complaint {
         CHAR complaint_id PK
         CHAR student_id FK
-        CHAR hostel_id FK
         CHAR room_id FK
         CHAR technician_id FK
         TEXT description
         VARCHAR complaint_type
         VARCHAR priority
         VARCHAR status
+        DATETIME created_at
+        DATETIME updated_at
         DATETIME resolved_at
-        INT days_open
-        BOOLEAN is_resolved
+        BOOLEAN is_resolved "STORED computed"
         TEXT resolution_notes
         DECIMAL cost_incurred
     }
@@ -268,16 +283,16 @@ erDiagram
         VARCHAR id_proof_type
         VARCHAR id_proof_number
         CHAR student_id FK
-        CHAR hostel_id FK
         CHAR room_id FK
         VARCHAR relation_to_student
         TEXT purpose
         DATETIME entry_time
         DATETIME exit_time
-        INT visit_duration_minutes
+        INT visit_duration_minutes "STORED computed"
         VARCHAR guard_name
         VARCHAR gate_number
         VARCHAR approved_by
+        DATETIME created_at
     }
     notice_board {
         CHAR notice_id PK
@@ -289,7 +304,6 @@ erDiagram
         VARCHAR posted_by
         DATETIME posted_at
         DATE expiry_date
-        BOOLEAN is_active
         VARCHAR attachment_url
     }
     maintenance_schedule {
@@ -304,6 +318,7 @@ erDiagram
         VARCHAR status
         TEXT notes
         DECIMAL cost
+        DATETIME created_at
     }
     store {
         CHAR store_id PK
@@ -315,6 +330,8 @@ erDiagram
         TIME timing_open
         TIME timing_close
         BOOLEAN is_operational
+        DATETIME created_at
+        DATETIME updated_at
     }
     store_purchase {
         CHAR purchase_id PK
@@ -338,6 +355,8 @@ erDiagram
         TIME timing_close
         BOOLEAN is_24hr
         BOOLEAN emergency_available
+        DATETIME created_at
+        DATETIME updated_at
     }
     pharmacy_visit {
         CHAR visit_id PK
@@ -362,6 +381,8 @@ erDiagram
         DECIMAL avg_cost_per_meal
         DECIMAL rating
         BOOLEAN is_operational
+        DATETIME created_at
+        DATETIME updated_at
     }
     gym {
         CHAR gym_id PK
@@ -375,6 +396,8 @@ erDiagram
         TIME timing_open
         TIME timing_close
         BOOLEAN is_operational
+        DATETIME created_at
+        DATETIME updated_at
     }
     gym_membership {
         CHAR membership_id PK
@@ -384,6 +407,8 @@ erDiagram
         DATE end_date
         DECIMAL fee_paid
         VARCHAR status
+        DATETIME created_at
+        DATETIME updated_at
     }
     ambulance_service {
         CHAR ambulance_id PK
@@ -395,36 +420,71 @@ erDiagram
         VARCHAR hospital_phone
         BOOLEAN is_available
         DATE last_service_date
+        DATETIME created_at
+        DATETIME updated_at
     }
     emergency_request {
         CHAR request_id PK
         CHAR student_id FK
         CHAR ambulance_id FK
-        CHAR hostel_id FK
         DATETIME request_time
         DATETIME pickup_time
         DATETIME hospital_reached_time
-        INT response_minutes
+        INT response_minutes "STORED computed"
         VARCHAR emergency_type
         TEXT description
         VARCHAR status
         TEXT notes
+        DATETIME created_at
+    }
+    auth_user {
+        CHAR user_id PK
+        CHAR student_id FK
+        VARCHAR email
+        VARCHAR password_hash
+        ENUM role "admin | warden | student"
+        BOOLEAN is_active
+        DATETIME last_login
+        VARCHAR refresh_token
+        DATETIME created_at
+        DATETIME updated_at
+    }
+    audit_log {
+        CHAR log_id PK
+        CHAR user_id FK
+        VARCHAR table_name
+        CHAR record_id
+        ENUM action "INSERT | UPDATE | DELETE"
+        JSON old_values
+        JSON new_values
+        VARCHAR ip_address
+        VARCHAR user_agent
+        DATETIME created_at
+    }
+    idempotency_key {
+        VARCHAR idempotency_key PK
+        CHAR user_id FK
+        VARCHAR request_path
+        VARCHAR request_hash
+        INT response_code
+        JSON response_body
+        DATETIME created_at
+        DATETIME expires_at
     }
 
-    hostel ||--o{ student : "accommodates"
+    %% ---- Relationships (3NF) ----
+
+    %% hostel owns rooms, mess, laundry, facility, store, notices, maintenance
     hostel ||--o{ room : "contains"
     hostel ||--o{ mess : "runs"
     hostel ||--o{ laundry : "provides"
     hostel ||--o{ facility : "offers"
     hostel ||--o{ store : "has"
-    hostel ||--o{ accesslog : "monitors"
-    hostel ||--o{ visitor_log : "records"
     hostel ||--o{ notice_board : "posts"
     hostel ||--o{ maintenance_schedule : "plans"
-    hostel ||--o{ feepayment : "collects"
-    hostel ||--o{ complaint : "receives"
     hostel ||--o{ technician : "employs"
-    hostel ||--o{ emergency_request : "responds"
+
+    %% student relationships
     student ||--o{ student_guardian : "has"
     student ||--o{ allocation : "assigned"
     student ||--o{ feepayment : "pays"
@@ -438,18 +498,31 @@ erDiagram
     student ||--o{ pharmacy_visit : "visits"
     student ||--o{ gym_membership : "enrolls"
     student ||--o{ emergency_request : "calls"
+
+    %% room / bed chain (3NF path: bed -> room -> hostel)
     room ||--o{ bed : "contains"
-    room ||--o{ allocation : "assigned"
-    room ||--o{ complaint : "about"
     bed ||--o{ allocation : "reserved"
+    room ||--o{ complaint : "about"
+    room ||--o{ visitor_log : "at"
+
+    %% technician
     technician ||--o{ complaint : "resolves"
     technician ||--o{ maintenance_schedule : "executes"
+
+    %% mess / menu
     mess ||--o{ mess_subscription : "has"
     mess ||--o{ menu : "serves"
+
+    %% other service entities
     laundry ||--o{ laundry_request : "receives"
     facility ||--o{ facility_booking : "reserved"
     store ||--o{ store_purchase : "sells"
     pharmacy ||--o{ pharmacy_visit : "records"
     gym ||--o{ gym_membership : "enrolls"
     ambulance_service ||--o{ emergency_request : "dispatched"
+
+    %% auth / audit
+    student ||--o| auth_user : "authenticates"
+    auth_user ||--o{ audit_log : "performed"
+    auth_user ||--o{ idempotency_key : "owns"
 ```

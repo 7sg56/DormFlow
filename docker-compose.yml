@@ -12,12 +12,31 @@ services:
       - "3307:3306"
     volumes:
       - ./backend/db:/docker-entrypoint-initdb.d
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-hostel}" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - hostel_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: hostel_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes --appendfsync everysec --no-appendfsync-on-rewrite yes --save "" --tcp-keepalive 60 --tcp-backlog 512 --timeout 0 --hz 20 --dynamic-hz yes --lazyfree-lazy-eviction yes --lazyfree-lazy-expire yes --lazyfree-lazy-server-del yes --activerehashing yes --activedefrag no --maxclients 1000 --client-output-buffer-limit normal 0 0 0 --client-output-buffer-limit pubsub 32mb 8mb 60
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - hostel_network
 
@@ -34,9 +53,19 @@ services:
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-hostel}
       - DB_NAME=${DB_NAME:-hostel_mgmt}
+      - DB_PORT=${DB_PORT:-3306}
+      - DATABASE_URL=mysql://${DB_USER:-root}:${DB_PASSWORD:-hostel}@${DB_HOST:-db}:${DB_PORT:-3306}/${DB_NAME:-hostel_mgmt}
       - PORT=${PORT:-5001}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - JWT_SECRET=${JWT_SECRET:-dormflow_jwt_secret_change_me}
+      - HMAC_SECRET=${HMAC_SECRET:-dormflow_hmac_secret_change_me}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - NODE_ENV=${NODE_ENV:-development}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - hostel_network
@@ -59,3 +88,7 @@ services:
 networks:
   hostel_network:
     driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:

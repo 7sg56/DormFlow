@@ -1,8 +1,32 @@
-node_modules/
+# Git
 .git/
+.gitignore
+
+# Dependencies (installed in container)
+node_modules/
+
+# Environment (injected via docker-compose)
 .env
+.env.*
+
+# Build artifacts
 .next/
 out/
+
+# Docker files
 Dockerfile
 docker-compose.yml
+docker-compose.override.yml
+
+# Docs and misc
 README.md
+docs/
+*.md
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
