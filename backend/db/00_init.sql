@@ -12,14 +12,15 @@
 --   8. accesslog.hostel_id         REMOVED  (derive via student→hostel)
 --   9. emergency_request.hostel_id REMOVED  (derive via student→hostel)
 --  10. bed.is_available            REMOVED  (exact inverse of occupied)
--- All removed hostel_id FKs are restored in views (03_views_3nf.sql)
+-- All removed hostel_id FKs are restored in views (03_views.sql)
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS hostel_mgmt_3nf
+DROP DATABASE IF EXISTS hostel_mgmt;
+CREATE DATABASE IF NOT EXISTS hostel_mgmt
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE hostel_mgmt_3nf;
+USE hostel_mgmt;
 
 -- ============================================================
 -- TABLE 1: hostel

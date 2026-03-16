@@ -9,7 +9,7 @@
 -- Indexes on PK (hostel_id, student_id …) are auto-created.
 -- ============================================================
 
-USE hostel_mgmt_3nf;
+USE hostel_mgmt;
 
 -- ============================================================
 -- student

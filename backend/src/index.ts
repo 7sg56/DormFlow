@@ -13,13 +13,13 @@ const pool = mysql.createPool({
   host: process.env.DB_HOST || 'db',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || 'hostel',
-  database: process.env.DB_NAME || 'hostel_mgmt_3nf',
+  database: process.env.DB_NAME || 'hostel_mgmt',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 });
 
-// Retry connection until MySQL is ready (Docker startup delay)
+// Retry connection until MySQL is ready(Docker startup delay)
 async function waitForDB(retries = 10, delay = 5000): Promise<void> {
   for (let i = 0; i < retries; i++) {
     try {

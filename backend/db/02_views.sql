@@ -1,14 +1,14 @@
 -- ============================================================
--- HOSTEL MANAGEMENT SYSTEM — VIEWS (3NF)
--- Run AFTER 01_init_3nf.sql and 02_data_3nf.sql
+-- HOSTEL MANAGEMENT SYSTEM — VIEWS
+-- Run AFTER 01_init.sql and 02_data.sql
 --
--- Because 3NF removes redundant hostel_id / room_id columns
+-- Note: Redundant hostel_id / room_id columns are removed in the main schema
 -- from activity tables, these views reconstruct the full
 -- picture via proper JOINs — so application queries remain
 -- identical to the 1NF version.
 -- ============================================================
 
-USE hostel_mgmt_3nf;
+USE hostel_mgmt;
 
 -- ============================================================
 -- HELPER: active allocation subquery used in several views

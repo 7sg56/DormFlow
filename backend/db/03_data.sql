@@ -1,6 +1,6 @@
 -- ============================================================
--- HOSTEL MANAGEMENT SYSTEM — 3NF SEED DATA
--- MySQL 8.0+ | Matches 3NF schema (01_init_3nf.sql)
+-- HOSTEL MANAGEMENT SYSTEM — SEED DATA
+-- MySQL 8.0+ | Matches schema
 -- Differences from 1NF seed:
 --   student        — hostel_id column removed
 --   allocation     — hostel_id, room_id columns removed
@@ -11,7 +11,7 @@
 --   emergency_request — hostel_id column removed
 -- ============================================================
 
-USE hostel_mgmt_3nf;
+USE hostel_mgmt;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
