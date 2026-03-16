@@ -7,11 +7,10 @@ services:
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-hostel}
-      MYSQL_DATABASE: ${DB_NAME:-hostel_mgmt_1nf}
+      MYSQL_DATABASE: ${DB_NAME:-hostel_mgmt}
     ports:
       - "3307:3306"
     volumes:
-      - db_data:/var/lib/mysql
       - ./backend/db:/docker-entrypoint-initdb.d
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-hostel}" ]
@@ -34,7 +33,7 @@ services:
       - DB_HOST=${DB_HOST:-db}
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-hostel}
-      - DB_NAME=${DB_NAME:-hostel_mgmt_1nf}
+      - DB_NAME=${DB_NAME:-hostel_mgmt}
       - PORT=${PORT:-5001}
     depends_on:
       db:
@@ -62,4 +61,3 @@ networks:
     driver: bridge
 
 volumes:
-  db_data:
