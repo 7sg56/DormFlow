@@ -1,8 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 
 interface SignupResponse {
     access_token: string;
@@ -31,7 +30,7 @@ export async function signupAction(formData: FormData) {
     }
 
     try {
-        const data = await fetchApi<SignupResponse>("/auth/register", {
+        const data = await fetchServerApi<SignupResponse>("/auth/register", {
             method: "POST",
             body: JSON.stringify({ email, password, confirm_password: confirmPassword, role }),
             requireAuth: false,
@@ -69,7 +68,7 @@ export async function signupAction(formData: FormData) {
                 maxAge: 60 * 60, // 1 hour
             });
 
-            redirect("/dashboard");
+            return { success: true, data };
         } else {
             return { error: "Invalid response from server." };
         }

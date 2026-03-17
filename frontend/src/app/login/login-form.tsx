@@ -8,6 +8,9 @@ import { Loader2 } from "lucide-react";
 import { loginAction } from "@/app/login/actions";
 import Link from "next/link";
 
+import { useRouter } from "next/navigation";
+import { setAuthTokens } from "@/lib/auth-utils";
+
 function SubmitButton() {
     const { pending } = useFormStatus();
     return (
@@ -21,6 +24,7 @@ function SubmitButton() {
 export function LoginForm() {
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
+    const router = useRouter();
 
     async function handleSubmit(formData: FormData) {
         setError(null);
@@ -28,8 +32,12 @@ export function LoginForm() {
             const result = await loginAction(formData);
             if (result?.error) {
                 setError(result.error);
+            } else if (result?.success && result.data) {
+                // Sync localStorage for legacy client components
+                setAuthTokens(result.data);
+                router.push('/dashboard');
+                router.refresh();
             }
-            // If no error, redirect was called by server action
         });
     }
 

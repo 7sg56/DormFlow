@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 
 interface LoginResponse {
     access_token: string;
@@ -23,7 +23,7 @@ export async function loginAction(formData: FormData) {
     }
 
     try {
-        const data = await fetchApi<LoginResponse>("/auth/login", {
+        const data = await fetchServerApi<LoginResponse>("/auth/login", {
             method: "POST",
             body: JSON.stringify({ email, password }),
             requireAuth: false,
@@ -61,7 +61,7 @@ export async function loginAction(formData: FormData) {
                 maxAge: 60 * 60, // 1 hour
             });
 
-            redirect("/dashboard");
+            return { success: true, data };
         } else {
             return { error: "Invalid response from server." };
         }
@@ -75,7 +75,7 @@ export async function loginAction(formData: FormData) {
 
 export async function logoutAction() {
     try {
-        await fetchApi("/auth/logout", {
+        await fetchServerApi("/auth/logout", {
             method: "POST",
             requireAuth: true,
         });

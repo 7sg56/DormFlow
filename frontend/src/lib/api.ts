@@ -1,5 +1,3 @@
-import { cookies } from "next/headers";
-
 const API_BASE_URL = typeof window === "undefined"
     ? (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api")
     : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api");
@@ -7,6 +5,7 @@ const API_BASE_URL = typeof window === "undefined"
 type FetchOptions = RequestInit & {
     requireAuth?: boolean;
     skipRefresh?: boolean; // Skip automatic token refresh
+    token?: string | null; // Manually provide token (e.g. from server cookies)
 };
 
 interface ErrorDetail {
@@ -15,12 +14,11 @@ interface ErrorDetail {
 }
 
 /**
- * Get token from cookies (works in both server and client)
+ * Get token from cookies (client only)
  */
 async function getToken(): Promise<string | null> {
     if (typeof window === "undefined") {
-        const cookieStore = await cookies();
-        return cookieStore.get("token")?.value || null;
+        return null; // Should be handled by server-specific helpers (e.g. fetchServerApi)
     }
     // Client-side: read from document.cookie
     const match = document.cookie.match(/(^|;)\s*token\s*=\s*([^;]+)/);
@@ -28,15 +26,38 @@ async function getToken(): Promise<string | null> {
 }
 
 /**
- * Get refresh token from cookies
+ * Get refresh token from cookies (client only)
  */
 async function getRefreshToken(): Promise<string | null> {
     if (typeof window === "undefined") {
-        const cookieStore = await cookies();
-        return cookieStore.get("refresh_token")?.value || null;
+        return null;
     }
     const match = document.cookie.match(/(^|;)\s*refresh_token\s*=\s*([^;]+)/);
     return match ? decodeURIComponent(match[2]) : null;
+}
+
+/**
+ * Get user from cookies (client only)
+ */
+export async function getUser(): Promise<any | null> {
+    if (typeof window === "undefined") {
+        return null;
+    }
+    const match = document.cookie.match(/(^|;)\s*user\s*=\s*([^;]+)/);
+    if (!match) return null;
+    try {
+        return JSON.parse(decodeURIComponent(match[2]));
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Get user role from cookies (client only)
+ */
+export async function getUserRole(): Promise<string | null> {
+    const user = await getUser();
+    return user?.role || null;
 }
 
 /**
@@ -107,13 +128,13 @@ let refreshPromise: Promise<boolean> | null = null;
  * Main API fetch function with automatic token refresh
  */
 export async function fetchApi<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
-    const { requireAuth = true, skipRefresh = false, headers, ...restOptions } = options;
+    const { requireAuth = true, skipRefresh = false, token: manualToken, headers, ...restOptions } = options;
 
     const requestHeaders = new Headers(headers);
     requestHeaders.set("Content-Type", "application/json");
 
     if (requireAuth) {
-        const token = await getToken();
+        const token = manualToken !== undefined ? manualToken : await getToken();
         if (token) {
             requestHeaders.set("Authorization", `Bearer ${token}`);
         }
