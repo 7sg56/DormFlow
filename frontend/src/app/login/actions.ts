@@ -14,7 +14,11 @@ interface LoginResponse {
     };
 }
 
-export async function loginAction(formData: FormData) {
+interface FormState {
+    error?: string;
+}
+
+export async function loginAction(_prevState: FormState | null, formData: FormData) {
     const email = formData.get("email");
     const password = formData.get("password");
 
@@ -52,16 +56,25 @@ export async function loginAction(formData: FormData) {
                 });
             }
 
-            // Store user object (1 hour - should match access token)
+            // Store user object (NOT httpOnly so client-side can read for sidebar)
+            // Token and refresh_token remain httpOnly for security
             cookieStore.set("user", JSON.stringify(data.user), {
-                httpOnly: true,
+                httpOnly: false,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
                 maxAge: 60 * 60, // 1 hour
             });
 
-            return { success: true, data };
+            // Also sync tokens to localStorage for client-side components
+            await syncTokensToLocalStorage({
+                access_token: data.access_token,
+                refresh_token: data.refresh_token,
+                user: data.user,
+            });
+
+            // Redirect to dashboard after successful login
+            redirect("/dashboard");
         } else {
             return { error: "Invalid response from server." };
         }
@@ -70,6 +83,34 @@ export async function loginAction(formData: FormData) {
             return { error: error.message };
         }
         return { error: "An unknown error occurred." };
+    }
+}
+
+/**
+ * Helper function to sync tokens to localStorage for client-side components
+ * This is needed because client-side fetchApi in auth-utils.ts uses localStorage
+ */
+async function syncTokensToLocalStorage(tokens: {
+    access_token: string;
+    refresh_token: string;
+    user: {
+        user_id: string;
+        email: string;
+        role: string;
+    };
+}): Promise<void> {
+    if (typeof window === 'undefined') return;
+
+    try {
+        localStorage.setItem('dormflow_access_token', tokens.access_token);
+        if (tokens.refresh_token) {
+            localStorage.setItem('dormflow_refresh_token', tokens.refresh_token);
+        }
+        if (tokens.user) {
+            localStorage.setItem('dormflow_user', JSON.stringify(tokens.user));
+        }
+    } catch (error) {
+        console.error('Error syncing tokens to localStorage:', error);
     }
 }
 

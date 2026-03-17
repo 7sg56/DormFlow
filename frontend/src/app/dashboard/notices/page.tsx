@@ -1,4 +1,3 @@
-import { fetchApi } from "@/lib/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { FileText, Plus, Bell } from "lucide-react";
@@ -13,20 +12,15 @@ interface Notice {
 }
 
 export default async function NoticesPage() {
-    let notices: Notice[] = [];
-    try {
-        notices = await fetchApi<Notice[]>("/notices") || [];
-    } catch (err) {
-        console.error("Failed to load notices:", err);
-    }
-
-    if (notices.length === 0) {
-        notices = [
-            { id: "n1", title: "Hostel Fee Submission Deadline", category: "Urgent", date: "2024-03-20", author: "Mgmt", status: "Active" },
-            { id: "n2", title: "New Mess Menu for April", category: "Info", date: "2024-03-25", author: "Mess Secretary", status: "Draft" },
-            { id: "n3", title: "Maintenance Alert: Water Supply", category: "Alert", date: "2024-03-15", author: "Warden", status: "Archived" },
-        ];
-    }
+    // Using mock data since backend /notices endpoint doesn't exist yet
+    // TODO: Implement backend endpoint for notices
+    const notices: Notice[] = [
+        { id: "n1", title: "Hostel Fee Submission Deadline", category: "Urgent", date: "2024-03-20", author: "Admin", status: "Active" },
+        { id: "n2", title: "New Mess Menu for April", category: "Info", date: "2024-03-25", author: "Mess Secretary", status: "Published" },
+        { id: "n3", title: "Maintenance Alert: Water Supply", category: "Alert", date: "2024-03-15", author: "Warden", status: "Archived" },
+        { id: "n4", title: "Spring Break Schedule Change", category: "Info", date: "2024-03-10", author: "Admin", status: "Published" },
+        { id: "n5", title: "Emergency Contact Numbers Updated", category: "Alert", date: "2024-03-05", author: "Admin", status: "Active" },
+    ];
 
     return (
         <div className="space-y-6">
@@ -79,9 +73,9 @@ export default async function NoticesPage() {
                             <TableCell className="text-muted-foreground">{notice.author}</TableCell>
                             <TableCell>{notice.date}</TableCell>
                             <TableCell>
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${notice.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                    notice.status === 'Draft' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                        'bg-muted text-muted-foreground dark:bg-muted/50'
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${notice.status === 'Active' || notice.status === 'Published' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                                    notice.status === 'Archived' ? 'bg-muted text-muted-foreground' :
+                                        'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
                                     }`}>
                                     {notice.status}
                                 </span>

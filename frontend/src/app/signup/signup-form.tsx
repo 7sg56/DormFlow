@@ -1,15 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
+import { useFormState } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { signupAction } from "@/app/signup/actions";
 import Link from "next/link";
-
-import { useRouter } from "next/navigation";
-import { setAuthTokens } from "@/lib/auth-utils";
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -22,36 +19,10 @@ function SubmitButton() {
 }
 
 export function SignupForm() {
-    const [error, setError] = useState<string | null>(null);
-    const [isPending, startTransition] = useTransition();
-    const router = useRouter();
-
-    async function handleSubmit(formData: FormData) {
-        setError(null);
-
-        const password = formData.get("password") as string;
-        const confirmPassword = formData.get("confirmPassword") as string;
-
-        if (password !== confirmPassword) {
-            setError("Passwords do not match");
-            return;
-        }
-
-        startTransition(async () => {
-            const result = await signupAction(formData);
-            if (result?.error) {
-                setError(result.error);
-            } else if (result?.success && result.data) {
-                // Sync localStorage for legacy client components
-                setAuthTokens(result.data);
-                router.push('/dashboard');
-                router.refresh();
-            }
-        });
-    }
+    const [state, formAction] = useFormState(signupAction, null);
 
     return (
-        <form action={handleSubmit} className="space-y-4">
+        <form action={formAction} className="space-y-4">
             <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                     Email address
@@ -62,7 +33,6 @@ export function SignupForm() {
                     type="email"
                     placeholder="student@dormflow.edu"
                     required
-                    disabled={isPending}
                 />
             </div>
             <input
@@ -79,7 +49,6 @@ export function SignupForm() {
                     name="password"
                     type="password"
                     required
-                    disabled={isPending}
                     minLength={8}
                 />
             </div>
@@ -92,14 +61,13 @@ export function SignupForm() {
                     name="confirmPassword"
                     type="password"
                     required
-                    disabled={isPending}
                     minLength={8}
                 />
             </div>
 
-            {error && (
+            {state?.error && (
                 <div className="text-sm text-red-500 font-medium">
-                    {error}
+                    {state.error}
                 </div>
             )}
 

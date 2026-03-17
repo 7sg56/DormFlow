@@ -1,4 +1,4 @@
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Users, Plus } from "lucide-react";
@@ -17,7 +17,7 @@ interface Student {
 export default async function StudentsPage() {
     let students: Student[] = [];
     try {
-        students = await fetchApi<Student[]>("/students") || [];
+        students = await fetchServerApi<Student[]>("/students") || [];
     } catch (err) {
         console.error("Failed to load students:", err);
     }

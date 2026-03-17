@@ -1,4 +1,4 @@
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { CreditCard, Plus } from "lucide-react";
@@ -17,7 +17,7 @@ interface Fee {
 export default async function FeesPage() {
     let fees: Fee[] = [];
     try {
-        fees = await fetchApi<Fee[]>("/fees") || [];
+        fees = await fetchServerApi<Fee[]>("/fees") || [];
     } catch (err) {
         console.error("Failed to load fees:", err);
     }

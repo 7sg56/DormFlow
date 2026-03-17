@@ -1,4 +1,4 @@
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Wrench, Plus, CheckCircle2, Clock } from "lucide-react";
@@ -17,7 +17,7 @@ interface Complaint {
 export default async function ComplaintsPage() {
     let complaints: Complaint[] = [];
     try {
-        complaints = await fetchApi<Complaint[]>("/complaints") || [];
+        complaints = await fetchServerApi<Complaint[]>("/complaints") || [];
     } catch (err) {
         console.error("Failed to load complaints:", err);
     }

@@ -2,7 +2,7 @@ const API_BASE_URL = typeof window === "undefined"
     ? (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api")
     : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api");
 
-type FetchOptions = RequestInit & {
+export type FetchOptions = RequestInit & {
     requireAuth?: boolean;
     skipRefresh?: boolean; // Skip automatic token refresh
     token?: string | null; // Manually provide token (e.g. from server cookies)
@@ -13,33 +13,18 @@ interface ErrorDetail {
     message: string;
 }
 
-/**
- * Get token from cookies (client only)
- */
-async function getToken(): Promise<string | null> {
-    if (typeof window === "undefined") {
-        return null; // Should be handled by server-specific helpers (e.g. fetchServerApi)
-    }
-    // Client-side: read from document.cookie
-    const match = document.cookie.match(/(^|;)\s*token\s*=\s*([^;]+)/);
-    return match ? decodeURIComponent(match[2]) : null;
-}
-
-/**
- * Get refresh token from cookies (client only)
- */
-async function getRefreshToken(): Promise<string | null> {
-    if (typeof window === "undefined") {
-        return null;
-    }
-    const match = document.cookie.match(/(^|;)\s*refresh_token\s*=\s*([^;]+)/);
-    return match ? decodeURIComponent(match[2]) : null;
+interface UserInfo {
+    user_id: string;
+    email: string;
+    role: string;
 }
 
 /**
  * Get user from cookies (client only)
+ * Note: This will only work for non-httpOnly cookies. For httpOnly cookies,
+ * use server-side helpers (server-api.ts) instead.
  */
-export async function getUser(): Promise<any | null> {
+export async function getUser(): Promise<UserInfo | null> {
     if (typeof window === "undefined") {
         return null;
     }
@@ -47,7 +32,7 @@ export async function getUser(): Promise<any | null> {
     if (!match) return null;
     try {
         return JSON.parse(decodeURIComponent(match[2]));
-    } catch (e) {
+    } catch {
         return null;
     }
 }
@@ -61,64 +46,30 @@ export async function getUserRole(): Promise<string | null> {
 }
 
 /**
- * Set cookie (works in both server and client)
- */
-function setCookie(name: string, value: string, maxAge: number): void {
-    if (typeof window === "undefined") {
-        // Server-side: can't set cookies directly, this is handled by server actions
-        return;
-    }
-    const isSecure = window.location.protocol === "https:";
-    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=lax${isSecure ? "; Secure" : ""}`;
-}
-
-/**
- * Delete cookie
- */
-function deleteCookie(name: string): void {
-    if (typeof window === "undefined") {
-        return;
-    }
-    document.cookie = `${name}=; path=/; max-age=0`;
-}
-
-/**
  * Refresh access token using refresh token
+ * Note: Since cookies are httpOnly, we cannot read the refresh token from client-side JS.
+ * The browser will automatically send the httpOnly refresh_token cookie with credentials: 'include'.
+ * However, the /auth/refresh endpoint expects the refresh_token in the request body.
+ * We need to use a server action for this since server-side code can read httpOnly cookies.
  */
 async function refreshAccessToken(): Promise<boolean> {
-    const refreshToken = await getRefreshToken();
-    if (!refreshToken) {
-        return false;
-    }
-
     try {
-        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            if (data.data?.access_token) {
-                // Update access token
-                setCookie("token", data.data.access_token, 60 * 60); // 1 hour
-                // Update refresh token (new one issued)
-                if (data.data.refresh_token) {
-                    setCookie("refresh_token", data.data.refresh_token, 60 * 60 * 24 * 7); // 7 days
-                }
-                return true;
-            }
+        // For client-side calls, we need to use a server action to access httpOnly cookies
+        if (typeof window !== "undefined") {
+            // Call a server action to refresh tokens
+            const response = await fetch("/api/auth/refresh", {
+                method: "POST",
+                credentials: 'include',
+            });
+            return response.ok;
         }
+
+        // Server-side path - would use server-to-server approach
+        return false;
     } catch (error) {
         console.error("Token refresh failed:", error);
+        return false;
     }
-
-    // If refresh fails, clear tokens
-    deleteCookie("token");
-    deleteCookie("refresh_token");
-    deleteCookie("user");
-    return false;
 }
 
 let isRefreshing = false;
@@ -133,16 +84,16 @@ export async function fetchApi<T>(endpoint: string, options: FetchOptions = {}):
     const requestHeaders = new Headers(headers);
     requestHeaders.set("Content-Type", "application/json");
 
-    if (requireAuth) {
-        const token = manualToken !== undefined ? manualToken : await getToken();
-        if (token) {
-            requestHeaders.set("Authorization", `Bearer ${token}`);
-        }
+    // Only set Authorization header if we have a manual token (server-side)
+    // Client-side will rely on httpOnly cookies being sent automatically
+    if (requireAuth && manualToken !== undefined && manualToken !== null) {
+        requestHeaders.set("Authorization", `Bearer ${manualToken}`);
     }
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...restOptions,
         headers: requestHeaders,
+        credentials: 'include', // Include httpOnly cookies
     });
 
     const data = await response.json();
@@ -159,14 +110,11 @@ export async function fetchApi<T>(endpoint: string, options: FetchOptions = {}):
         refreshPromise = null;
 
         if (refreshed) {
-            // Retry original request with new token
-            const newToken = await getToken();
-            if (newToken) {
-                requestHeaders.set("Authorization", `Bearer ${newToken}`);
-            }
+            // Retry original request with new token (cookies will be sent automatically)
             const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
                 ...restOptions,
                 headers: requestHeaders,
+                credentials: 'include',
             });
             const retryData = await retryResponse.json();
 

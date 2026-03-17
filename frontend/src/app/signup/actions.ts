@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { fetchServerApi } from "@/lib/server-api";
 
 interface SignupResponse {
@@ -13,18 +14,51 @@ interface SignupResponse {
     };
 }
 
-export async function signupAction(formData: FormData) {
+interface FormState {
+    error?: string;
+}
+
+/**
+ * Helper function to sync tokens to localStorage for client-side components
+ * This is needed because client-side fetchApi in auth-utils.ts uses localStorage
+ */
+interface TokensForLocalStorage {
+    access_token: string;
+    refresh_token: string;
+    user: {
+        user_id: string;
+        email: string;
+        role: string;
+    };
+}
+
+async function syncTokensToLocalStorage(tokens: TokensForLocalStorage): Promise<void> {
+    if (typeof window === "undefined") return;
+
+    try {
+        localStorage.setItem("dormflow_access_token", tokens.access_token);
+        if (tokens.refresh_token) {
+            localStorage.setItem("dormflow_refresh_token", tokens.refresh_token);
+        }
+        if (tokens.user) {
+            localStorage.setItem("dormflow_user", JSON.stringify(tokens.user));
+        }
+    } catch (error) {
+        console.error("Error syncing tokens to localStorage:", error);
+    }
+}
+
+export async function signupAction(_prevState: FormState | null, formData: FormData) {
     const email = formData.get("email");
     const password = formData.get("password");
     const confirmPassword = formData.get("confirmPassword");
     const role = "student"; // Always student for public registration
-    // student_id is optional but required for students in the DB down the line, we'll keep it simple for now and omit during signup since we don't have the student profile yet.
 
     if (!email || !password) {
         return { error: "Email and password are required" };
     }
 
-    // Client-side validation for password match (server also validates)
+    // Server-side validation for password match
     if (password !== confirmPassword) {
         return { error: "Passwords do not match" };
     }
@@ -59,16 +93,25 @@ export async function signupAction(formData: FormData) {
                 });
             }
 
-            // Store user object (1 hour - should match access token)
+            // Store user object (NOT httpOnly so client-side can read for sidebar)
+            // Token and refresh_token remain httpOnly for security
             cookieStore.set("user", JSON.stringify(data.user), {
-                httpOnly: true,
+                httpOnly: false,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
                 maxAge: 60 * 60, // 1 hour
             });
 
-            return { success: true, data };
+            // Also sync tokens to localStorage for client-side components
+            await syncTokensToLocalStorage({
+                access_token: data.access_token,
+                refresh_token: data.refresh_token,
+                user: data.user,
+            });
+
+            // Redirect to dashboard after successful signup
+            redirect("/dashboard");
         } else {
             return { error: "Invalid response from server." };
         }

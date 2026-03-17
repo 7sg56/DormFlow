@@ -1,4 +1,4 @@
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { BedDouble, Plus } from "lucide-react";
@@ -17,7 +17,7 @@ interface Room {
 export default async function RoomsPage() {
     let rooms: Room[] = [];
     try {
-        rooms = await fetchApi<Room[]>("/rooms") || [];
+        rooms = await fetchServerApi<Room[]>("/rooms") || [];
     } catch (err) {
         console.error("Failed to load rooms:", err);
     }

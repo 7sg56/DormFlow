@@ -1,4 +1,4 @@
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { UserSquare2, Plus } from "lucide-react";
@@ -15,7 +15,7 @@ interface Technician {
 export default async function TechniciansPage() {
     let technicians: Technician[] = [];
     try {
-        technicians = await fetchApi<Technician[]>("/technicians") || [];
+        technicians = await fetchServerApi<Technician[]>("/technicians") || [];
     } catch (err) {
         console.error("Failed to load technicians:", err);
     }

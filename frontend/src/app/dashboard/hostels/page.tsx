@@ -1,4 +1,4 @@
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Building2, Plus } from "lucide-react";
@@ -14,7 +14,7 @@ interface Hostel {
 export default async function HostelsPage() {
     let hostels: Hostel[] = [];
     try {
-        hostels = await fetchApi<Hostel[]>("/hostels") || [];
+        hostels = await fetchServerApi<Hostel[]>("/hostels") || [];
     } catch (err) {
         console.error("Failed to load hostels:", err);
     }

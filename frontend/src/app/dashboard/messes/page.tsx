@@ -1,4 +1,4 @@
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Utensils, Plus } from "lucide-react";
@@ -15,7 +15,7 @@ interface Mess {
 export default async function MessesPage() {
     let messes: Mess[] = [];
     try {
-        messes = await fetchApi<Mess[]>("/messes") || [];
+        messes = await fetchServerApi<Mess[]>("/messes") || [];
     } catch (err) {
         console.error("Failed to load messes:", err);
     }

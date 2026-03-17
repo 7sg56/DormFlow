@@ -1,4 +1,4 @@
-import { fetchApi } from "@/lib/api";
+import { fetchServerApi } from "@/lib/server-api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Bed, Plus } from "lucide-react";
@@ -14,7 +14,7 @@ interface Bed {
 export default async function BedsPage() {
     let beds: Bed[] = [];
     try {
-        beds = await fetchApi<Bed[]>("/beds") || [];
+        beds = await fetchServerApi<Bed[]>("/beds") || [];
     } catch (err) {
         console.error("Failed to load beds:", err);
     }
