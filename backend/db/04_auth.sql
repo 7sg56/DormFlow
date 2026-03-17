@@ -11,18 +11,24 @@ USE hostel_mgmt;
 -- Login credentials, password hashes, roles
 -- ============================================================
 CREATE TABLE auth_user (
-    user_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
-    student_id      CHAR(36)        UNIQUE,
-    email           VARCHAR(100)    NOT NULL UNIQUE,
-    password_hash   VARCHAR(255)    NOT NULL,
-    role            ENUM('admin','warden','student') NOT NULL DEFAULT 'student',
-    is_active       BOOLEAN         DEFAULT TRUE,
-    last_login      DATETIME,
-    refresh_token   VARCHAR(500),
-    created_at      DATETIME        DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    user_id             CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+    student_id          CHAR(36)        UNIQUE,
+    email               VARCHAR(100)    NOT NULL UNIQUE,
+    password_hash       VARCHAR(255)    NOT NULL,
+    role                ENUM('admin','warden','student','technician') NOT NULL DEFAULT 'student',
+    is_active           BOOLEAN         DEFAULT TRUE,
+    last_login          DATETIME,
+    refresh_token       VARCHAR(500),
+    assigned_hostel_id  CHAR(36),
+    technician_id       CHAR(36)        UNIQUE,
+    created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_auth_student FOREIGN KEY (student_id)
-        REFERENCES student(student_id) ON DELETE SET NULL
+        REFERENCES student(student_id) ON DELETE SET NULL,
+    CONSTRAINT fk_auth_hostel FOREIGN KEY (assigned_hostel_id)
+        REFERENCES hostel(hostel_id) ON DELETE SET NULL,
+    CONSTRAINT fk_auth_technician FOREIGN KEY (technician_id)
+        REFERENCES technician(technician_id) ON DELETE SET NULL
 );
 
 -- ============================================================
@@ -69,6 +75,8 @@ CREATE TABLE idempotency_key (
 CREATE INDEX idx_auth_email      ON auth_user (email);
 CREATE INDEX idx_auth_role       ON auth_user (role, is_active);
 CREATE INDEX idx_auth_student    ON auth_user (student_id);
+CREATE INDEX idx_auth_hostel     ON auth_user (assigned_hostel_id);
+CREATE INDEX idx_auth_technician ON auth_user (technician_id);
 
 -- audit_log
 CREATE INDEX idx_audit_table_record ON audit_log (table_name, record_id);
