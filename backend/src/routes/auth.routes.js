@@ -5,13 +5,12 @@ const prisma = require('../lib/prisma');
 const logger = require('../lib/logger');
 const { validate } = require('../middleware/validate');
 const { authLimiter } = require('../middleware/rateLimiter');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize, JWT_SECRET } = require('../middleware/auth');
 const { AppError } = require('../middleware/errorHandler');
 const { registerSchema, loginSchema, refreshTokenSchema } = require('../schemas/auth.schema');
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dormflow_jwt_secret_change_me';
 const ACCESS_TOKEN_EXPIRY = '1h';
 const REFRESH_TOKEN_EXPIRY = '7d';
 
