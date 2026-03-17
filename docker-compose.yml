@@ -79,7 +79,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:5001/api
+      - API_URL=http://backend:${PORT:-5001}/api
+      - NEXT_PUBLIC_API_URL=http://localhost:${PORT:-5001}/api
     depends_on:
       - backend
     networks:
