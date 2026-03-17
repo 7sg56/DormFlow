@@ -1,12 +1,13 @@
 const crypto = require('crypto');
 const logger = require('../lib/logger');
 
-if (!process.env.HMAC_SECRET) {
-  logger.error('FATAL ERROR: HMAC_SECRET environment variable is not set.');
+const HMAC_SECRET = process.env.HMAC_SECRET;
+
+if (!HMAC_SECRET) {
+  logger.error('FATAL ERROR: HMAC_SECRET environment variable is not defined.');
   process.exit(1);
 }
 
-const HMAC_SECRET = process.env.HMAC_SECRET;
 const MAX_TIMESTAMP_DRIFT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
@@ -18,6 +19,7 @@ const MAX_TIMESTAMP_DRIFT_MS = 5 * 60 * 1000; // 5 minutes
  *   X-HMAC-Timestamp: Unix timestamp in ms
  */
 function hmacVerify(req, res, next) {
+
   const signature = req.headers['x-hmac-signature'];
   const timestamp = req.headers['x-hmac-timestamp'];
 

@@ -2,12 +2,12 @@ const jwt = require('jsonwebtoken');
 const { AppError } = require('./errorHandler');
 const logger = require('../lib/logger');
 
-if (!process.env.JWT_SECRET) {
-  logger.error('FATAL ERROR: JWT_SECRET environment variable is not set.');
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  logger.error('FATAL ERROR: JWT_SECRET environment variable is not defined.');
   process.exit(1);
 }
-
-const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
  * JWT authentication middleware
