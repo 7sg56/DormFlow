@@ -1,30 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { loginAction } from "@/app/login/actions";
 import Link from "next/link";
 
+function SubmitButton() {
+    const { pending } = useFormStatus();
+    return (
+        <Button className="w-full mt-4" type="submit" disabled={pending}>
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {pending ? "Signing in..." : "Sign in"}
+        </Button>
+    );
+}
+
 export function LoginForm() {
-    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isPending, startTransition] = useTransition();
 
     async function handleSubmit(formData: FormData) {
-        setIsLoading(true);
         setError(null);
-
-        try {
+        startTransition(async () => {
             const result = await loginAction(formData);
             if (result?.error) {
                 setError(result.error);
             }
-        } catch {
-            setError("An unexpected error occurred. Please try again.");
-        } finally {
-            setIsLoading(false);
-        }
+            // If no error, redirect was called by server action
+        });
     }
 
     return (
@@ -39,7 +45,7 @@ export function LoginForm() {
                     type="email"
                     placeholder="admin@dormflow.edu"
                     required
-                    disabled={isLoading}
+                    disabled={isPending}
                 />
             </div>
             <div className="space-y-2">
@@ -53,7 +59,7 @@ export function LoginForm() {
                     name="password"
                     type="password"
                     required
-                    disabled={isLoading}
+                    disabled={isPending}
                 />
             </div>
 
@@ -63,10 +69,7 @@ export function LoginForm() {
                 </div>
             )}
 
-            <Button className="w-full mt-4" type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Sign in
-            </Button>
+            <SubmitButton />
 
             <div className="mt-4 text-center text-sm text-muted-foreground">
                 Don&apos;t have an account?{" "}

@@ -40,6 +40,12 @@ router.post(
     try {
       const { email, password, role, student_id } = req.body;
 
+      // Security: Only allow 'student' role during registration
+      // Admin/warden roles should be set by existing admins only
+      if (role && role !== 'student') {
+        throw new AppError(403, 'Invalid role. Only student accounts can be created via registration.');
+      }
+
       // Check existing
       const existing = await prisma.auth_user.findUnique({ where: { email } });
       if (existing) {

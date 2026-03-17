@@ -6,6 +6,7 @@ import { fetchApi } from "@/lib/api";
 
 interface LoginResponse {
     access_token: string;
+    refresh_token: string;
     user: {
         user_id: string;
         email: string;
@@ -30,21 +31,34 @@ export async function loginAction(formData: FormData) {
 
         if (data?.access_token) {
             const cookieStore = await cookies();
+
+            // Store access token (1 hour expiry to match JWT)
             cookieStore.set("token", data.access_token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 60 * 60 * 24, // 1 day
+                maxAge: 60 * 60, // 1 hour (matches JWT ACCESS_TOKEN_EXPIRY)
             });
 
-            // Store user object too if needed, or fetch it on the server
+            // Store refresh token (7 days to match JWT)
+            if (data.refresh_token) {
+                cookieStore.set("refresh_token", data.refresh_token, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production",
+                    sameSite: "lax",
+                    path: "/",
+                    maxAge: 60 * 60 * 24 * 7, // 7 days (matches JWT REFRESH_TOKEN_EXPIRY)
+                });
+            }
+
+            // Store user object (1 hour - should match access token)
             cookieStore.set("user", JSON.stringify(data.user), {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 60 * 60 * 24,
+                maxAge: 60 * 60, // 1 hour
             });
 
             redirect("/dashboard");
@@ -55,6 +69,7 @@ export async function loginAction(formData: FormData) {
         if (error instanceof Error) {
             return { error: error.message };
         }
+        return { error: "An unknown error occurred." };
     }
 }
 
@@ -69,6 +84,7 @@ export async function logoutAction() {
     } finally {
         const cookieStore = await cookies();
         cookieStore.delete("token");
+        cookieStore.delete("refresh_token");
         cookieStore.delete("user");
         redirect("/login");
     }

@@ -10,8 +10,12 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/login', request.url))
     }
 
-    // Redirect authenticated users away from login
+    // Redirect authenticated users away from login and signup
     if (pathname === '/login' && hasToken) {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+
+    if (pathname === '/signup' && hasToken) {
         return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
@@ -24,5 +28,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/dashboard/:path*', '/login', '/'],
+    matcher: ['/dashboard/:path*', '/login', '/signup', '/'],
 }
