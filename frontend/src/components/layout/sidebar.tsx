@@ -9,24 +9,14 @@ import {
   Menu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect } from "react";
-import { getUserRole } from "@/lib/api";
-import { getNavItemsForRole, clearAuth } from "@/lib/auth-utils";
+import { getUserRole, getNavItemsForRole, clearAuth } from "@/lib/auth-utils";
 import { logoutAction } from "@/app/login/actions";
 import type { UserRole } from "@/lib/rbac-config";
 export function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-
-  useEffect(() => {
-    async function initRole() {
-      const role = await getUserRole();
-      setUserRole(role as UserRole);
-    }
-    initRole();
-  }, []);
+  const [userRole] = useState<UserRole | null>(() => getUserRole());
 
   const navItems = (userRole as UserRole) ? getNavItemsForRole(userRole as UserRole) : [];
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { fetchApi } from "@/lib/auth-utils";
+import { fetchApi } from "@/lib/api";
 import Link from "next/link";
 import { StatusBadge, MaintenanceStatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-state";

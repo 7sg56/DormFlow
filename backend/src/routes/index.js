@@ -90,19 +90,8 @@ const filterByUser = {
     return {};
   },
 
-  // Warden filter for rooms: only their hostel's rooms
-  room: async (req) => {
-    if (req.user.role === 'warden') {
-      const user = await prisma.auth_user.findUnique({
-        where: { user_id: req.user.userId },
-        select: { assigned_hostel_id: true },
-      });
-      if (user?.assigned_hostel_id) {
-        return { hostel_id: user.assigned_hostel_id };
-      }
-    }
-    return {};
-  },
+  // Warden filter for rooms: same logic as hostel filter (filter by hostel_id)
+  room: async (req) => filterByUser.hostel(req),
 
   // Warden filter for beds: only their hostel's beds
   bed: async (req) => {

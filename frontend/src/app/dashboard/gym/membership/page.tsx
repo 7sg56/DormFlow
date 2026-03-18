@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchApi } from "@/lib/auth-utils";
+import { fetchApi } from "@/lib/api";
 import { Dumbbell, DollarSign, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -45,12 +45,8 @@ export default function GymMembershipPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const response = await fetch('/api/gym-memberships', {
+      await fetchApi('/gym-memberships', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('dormflow_access_token')}`,
-        },
         body: JSON.stringify({
           ...formData,
           start_date: formData.start_date ? new Date(formData.start_date).toISOString().split('T')[0] : undefined,
@@ -59,9 +55,7 @@ export default function GymMembershipPage() {
         }),
       });
 
-      if (response.ok) {
-        router.push('/dashboard/gym');
-      }
+      router.push('/dashboard/gym');
     } catch (err) {
       console.error('Error creating membership:', err);
     } finally {

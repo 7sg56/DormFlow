@@ -13,38 +13,6 @@ interface ErrorDetail {
     message: string;
 }
 
-interface UserInfo {
-    user_id: string;
-    email: string;
-    role: string;
-}
-
-/**
- * Get user from cookies (client only)
- * Note: This will only work for non-httpOnly cookies. For httpOnly cookies,
- * use server-side helpers (server-api.ts) instead.
- */
-export async function getUser(): Promise<UserInfo | null> {
-    if (typeof window === "undefined") {
-        return null;
-    }
-    const match = document.cookie.match(/(^|;)\s*user\s*=\s*([^;]+)/);
-    if (!match) return null;
-    try {
-        return JSON.parse(decodeURIComponent(match[2]));
-    } catch {
-        return null;
-    }
-}
-
-/**
- * Get user role from cookies (client only)
- */
-export async function getUserRole(): Promise<string | null> {
-    const user = await getUser();
-    return user?.role || null;
-}
-
 /**
  * Refresh access token using refresh token
  * Note: Since cookies are httpOnly, we cannot read the refresh token from client-side JS.

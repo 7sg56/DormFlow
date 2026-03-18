@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchApi } from "@/lib/auth-utils";
+import { fetchApi } from "@/lib/api";
 import { Loader2, Shirt } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -45,12 +45,8 @@ export default function LaundryRequestPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const response = await fetch('/api/laundry-requests', {
+      await fetchApi('/laundry-requests', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('dormflow_access_token')}`,
-        },
         body: JSON.stringify({
           ...formData,
           pickup_date: formData.pickup_date ? new Date(formData.pickup_date).toISOString().split('T')[0] : undefined,
@@ -58,9 +54,7 @@ export default function LaundryRequestPage() {
         }),
       });
 
-      if (response.ok) {
-        router.push('/dashboard/laundry');
-      }
+      router.push('/dashboard/laundry');
     } catch (err) {
       console.error('Error creating laundry request:', err);
     } finally {

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { fetchApi, getUserRole } from "@/lib/auth-utils";
+import { fetchApi } from "@/lib/api";
+import { getUserRole } from "@/lib/auth-utils";
 import Link from "next/link";
 import { StatusBadge, MaintenanceStatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-state";

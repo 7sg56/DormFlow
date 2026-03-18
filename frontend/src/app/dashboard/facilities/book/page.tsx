@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchApi } from "@/lib/auth-utils";
+import { fetchApi } from "@/lib/api";
 import { Calendar, Clock, Loader2, User, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -46,21 +46,15 @@ export default function FacilityBookingPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const response = await fetch('/api/facility-bookings', {
+      await fetchApi('/facility-bookings', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('dormflow_access_token')}`,
-        },
         body: JSON.stringify({
           ...formData,
           booking_date: formData.booking_date ? new Date(formData.booking_date).toISOString().split('T')[0] : undefined,
         }),
       });
 
-      if (response.ok) {
-        router.push('/dashboard/facilities');
-      }
+      router.push('/dashboard/facilities');
     } catch (err) {
       console.error('Error creating booking:', err);
     } finally {

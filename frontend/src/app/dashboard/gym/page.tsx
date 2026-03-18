@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { fetchApi, getUserRole } from "@/lib/auth-utils";
+import { fetchApi } from "@/lib/api";
+import { getUserRole } from "@/lib/auth-utils";
 import { MapPin, User, Plus } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";

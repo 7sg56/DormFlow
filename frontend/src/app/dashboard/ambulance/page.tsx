@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { fetchApi } from "@/lib/auth-utils";
+import { fetchApi } from "@/lib/api";
 import { PhoneCall, MapPin, Car } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-state";

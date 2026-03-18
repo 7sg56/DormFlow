@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { fetchApi } from "@/lib/auth-utils";
+import { fetchApi } from "@/lib/api";
 import { TableSkeleton } from "@/components/ui/loading-state";
 import { NoDataFound } from "@/components/ui/empty-state";
 

@@ -15,12 +15,12 @@ router.get('/pharmacy', async (req, res, next) => {
             select: {
                 pharmacy_id: true,
                 pharmacy_name: true,
-                address: string | null,
-                manager_name: string | null,
-                manager_phone: string | null,
-                pharmacist_name: string | null,
-                pharmacist_phone: string | null,
-                is_24hr_available: boolean,
+                address: true,
+                manager_name: true,
+                manager_phone: true,
+                pharmacist_name: true,
+                pharmacist_phone: true,
+                is_24hr_available: true,
             },
         });
 
@@ -47,10 +47,10 @@ router.get('/pharmacy/:id', authenticate, authorize('admin', 'warden'), async (r
                         med_id: true,
                         medicine_name: true,
                         stock_quantity: true,
-                        dosage_form: string | null,
-                        manufacturer: string | null,
-                        batch_number: string | null,
-                        expiry_date: Date | null,
+                        dosage_form: true,
+                        manufacturer: true,
+                        batch_number: true,
+                        expiry_date: true,
                     },
                 },
             },
@@ -185,10 +185,10 @@ router.get('/pharmacy/medicines', authenticate, authorize('admin', 'warden', 'te
                 pharmacy_id: true,
                 medicine_name: true,
                 stock_quantity: true,
-                dosage_form: string | null,
-                manufacturer: string | null,
-                batch_number: string | null,
-                expiry_date: Date | null,
+                dosage_form: true,
+                manufacturer: true,
+                batch_number: true,
+                expiry_date: true,
             },
             orderBy: { created_at: 'desc' },
         });
@@ -210,10 +210,10 @@ router.get('/pharmacy/medicines/:medId', authenticate, authorize('admin', 'warde
                 pharmacy_id: true,
                 medicine_name: true,
                 stock_quantity: true,
-                dosage_form: string | null,
-                manufacturer: string | null,
-                batch_number: string | null,
-                expiry_date: Date | null,
+                dosage_form: true,
+                manufacturer: true,
+                batch_number: true,
+                expiry_date: true,
             },
             include: {
                 pharmacy: {
@@ -221,8 +221,8 @@ router.get('/pharmacy/medicines/:medId', authenticate, authorize('admin', 'warde
                         pharmacy_id: true,
                         pharmacy_name: true,
                     },
-            },
                 },
+            },
         });
 
         if (!medicine) {
@@ -251,13 +251,13 @@ router.get('/pharmacy/visits', authenticate, authorize('admin'), async (req, res
                 },
                 visitor: {
                     select: {
-                        visitor_name: string | null,
-                        id_proof_type: string | null,
-                        id_proof_number: string | null,
+                        visitor_name: true,
+                        id_proof_type: true,
+                        id_proof_number: true,
                         student_id: true,
                     },
                 },
-                },
+            },
         });
 
         res.json({ success: true, data: visits });

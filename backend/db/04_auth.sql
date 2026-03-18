@@ -92,4 +92,4 @@ CREATE INDEX idx_idem_user       ON idempotency_key (user_id);
 -- SEED: default admin user (password: admin123 — bcrypt hash)
 -- ============================================================
 INSERT INTO auth_user (user_id, email, password_hash, role, is_active) VALUES
-('u-0001-0000-0000-000000000001', 'admin@dormflow.edu', '$2b$10$LqPvEz0JxK2RqH8xZ7e6y.rJ1s9VqOBhFG2xVHNyM0kJv4V4XJWXS', 'admin', TRUE);
+('u-0001-0000-0000-000000000001', 'admin@dormflow.edu', '$2b$10$/01Tz7cpgNf7iOBIWv.7leVG2plLjXjEA4Yp7LUAp3OMUy3v.PP9.', 'admin', TRUE);
