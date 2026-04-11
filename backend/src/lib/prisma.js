@@ -44,27 +44,35 @@ const VERSIONED_TABLES = new Set([
   'emergency_request',
 ]);
 
-prisma.$use(async (params, next) => {
-  // Only intercept update/updateMany on versioned tables
-  if (
-    VERSIONED_TABLES.has(params.model) &&
-    (params.action === 'update' || params.action === 'updateMany')
-  ) {
-    const where = params.args?.where || {};
-
-    // Warn if row_version is not in the WHERE clause.
-    // This is a development-time safeguard — not a hard block —
-    // because some internal operations (triggers, system updates)
-    // legitimately skip version checks.
-    if (!('row_version' in where)) {
-      logger.debug(
-        `[OCC] Update on versioned table "${params.model}" without row_version in WHERE. ` +
-        `Consider using withOptimisticLock() for concurrent-safe updates.`
-      );
+const extendedPrisma = prisma.$extends({
+  query: {
+    $allModels: {
+      async update({ model, operation, args, query }) {
+        if (VERSIONED_TABLES.has(model)) {
+          const where = args.where || {};
+          if (!('row_version' in where)) {
+            logger.debug(
+              `[OCC] Update on versioned table "${model}" without row_version in WHERE. ` +
+              `Consider using withOptimisticLock() for concurrent-safe updates.`
+            );
+          }
+        }
+        return query(args);
+      },
+      async updateMany({ model, operation, args, query }) {
+        if (VERSIONED_TABLES.has(model)) {
+          const where = args.where || {};
+          if (!('row_version' in where)) {
+            logger.debug(
+              `[OCC] UpdateMany on versioned table "${model}" without row_version in WHERE. ` +
+              `Consider using withOptimisticLock() for concurrent-safe updates.`
+            );
+          }
+        }
+        return query(args);
+      }
     }
   }
-
-  return next(params);
 });
 
-module.exports = prisma;
+module.exports = extendedPrisma;
