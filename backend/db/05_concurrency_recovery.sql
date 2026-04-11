@@ -283,8 +283,9 @@ BEGIN
             JSON_ARRAY('bed', 'allocation'),
             p_user_id, p_session_id);
 
-    -- Step 2: Begin transaction with SERIALIZABLE isolation
-    SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+    -- Step 2: Begin transaction with READ COMMITTED isolation to prevent gap locks
+    -- Safety relies on explicit row locks + unique constraints at scale
+    SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
     START TRANSACTION;
 
     -- Step 3: Lock the bed row exclusively
@@ -522,8 +523,9 @@ BEGIN
     VALUES (v_txn_id, 'BOOKING', 'STARTED',
             JSON_ARRAY('facility_booking'), p_user_id, p_session_id);
 
-    -- SERIALIZABLE prevents phantom reads (new rows appearing between SELECT and INSERT)
-    SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+    -- READ COMMITTED prevents gap locks and improves concurrency under extreme load.
+    -- Redis distributed locking handles phantom insert prevention at the app layer.
+    SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
     START TRANSACTION;
 
     -- Lock and check for overlapping bookings
@@ -656,12 +658,13 @@ DELIMITER ;
 -- ┌──────────────────────┬───────────────────┬──────────────────────────────────────┐
 -- │ Operation            │ Isolation Level   │ Rationale                            │
 -- ├──────────────────────┼───────────────────┼──────────────────────────────────────┤
--- │ Bed allocation       │ SERIALIZABLE      │ Prevent phantom reads — two users    │
--- │                      │                   │ must not see the same bed as free    │
+-- │ Bed allocation       │ READ COMMITTED    │ Prevent gap locks at scale; rely on  │
+-- │                      │                   │ explicit FOR UPDATE row locks instead│
 -- ├──────────────────────┼───────────────────┼──────────────────────────────────────┤
 -- │ Fee payment          │ REPEATABLE READ   │ Consistent balance calc within txn   │
 -- ├──────────────────────┼───────────────────┼──────────────────────────────────────┤
--- │ Facility booking     │ SERIALIZABLE      │ Prevent phantom bookings in window   │
+-- │ Facility booking     │ READ COMMITTED    │ Avoid gap locks; use Redis + FOR     │
+-- │                      │                   │ UPDATE for overlap prevention        │
 -- ├──────────────────────┼───────────────────┼──────────────────────────────────────┤
 -- │ Read-only dashboards │ READ COMMITTED    │ Reduce lock contention for reports   │
 -- ├──────────────────────┼───────────────────┼──────────────────────────────────────┤
@@ -677,11 +680,11 @@ BEGIN
            @@SESSION.transaction_isolation AS session_isolation_level;
 
     -- Display recommended settings as a result set
-    SELECT 'Bed allocation'       AS operation, 'SERIALIZABLE'     AS recommended_level, 'Prevent phantom reads on bed availability'  AS rationale
+    SELECT 'Bed allocation'       AS operation, 'READ COMMITTED'     AS recommended_level, 'Prevent gap locking under load'  AS rationale
     UNION ALL
     SELECT 'Fee payment',                       'REPEATABLE READ',                        'Consistent balance calculation'
     UNION ALL
-    SELECT 'Facility booking',                  'SERIALIZABLE',                           'Prevent phantom bookings in time window'
+    SELECT 'Facility booking',                  'READ COMMITTED',                           'Prevent gap locking under load'
     UNION ALL
     SELECT 'Read-only dashboards',              'READ COMMITTED',                         'Reduce lock contention for reporting'
     UNION ALL
