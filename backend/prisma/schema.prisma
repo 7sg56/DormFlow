@@ -10,7 +10,19 @@ datasource db {
 }
 
 // ============================================================
-// TABLE 1: hostel
+// BCNF: pincode_locality
+// ============================================================
+model pincode_locality {
+  pincode String @id @db.VarChar(10)
+  city    String @db.VarChar(100)
+  state   String @db.VarChar(100)
+
+  hostels  hostel[]
+  students student[]
+}
+
+// ============================================================
+// TABLE 1: hostel  (BCNF: warden/city/state removed)
 // ============================================================
 model hostel {
   hostel_id      String   @id @default(uuid()) @db.Char(36)
@@ -18,19 +30,16 @@ model hostel {
   type           String   @db.VarChar(50)
   total_floors   Int
   address        String?  @db.VarChar(255)
-  city           String?  @db.VarChar(100)
-  state          String?  @db.VarChar(100)
   pincode        String?  @db.VarChar(10)
   established_year Int?   @db.Year
   registration_no  String? @unique @db.VarChar(100)
-  warden_name    String?  @db.VarChar(100)
-  warden_phone   String?  @db.VarChar(15)
-  warden_email   String?  @db.VarChar(100)
   office_phone   String?  @db.VarChar(15)
   emergency_phone String? @db.VarChar(15)
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 
+  pincode_ref          pincode_locality? @relation(fields: [pincode], references: [pincode], onUpdate: Cascade)
+  wardens              hostel_warden[]
   rooms                room[]
   technicians          technician[]
   messes               mess[]
@@ -40,10 +49,31 @@ model hostel {
   maintenance_schedules maintenance_schedule[]
   stores               store[]
   assigned_wardens     auth_user[]
+
+  @@index([pincode], name: "idx_hostel_pincode")
 }
 
 // ============================================================
-// TABLE 2: student
+// BCNF: hostel_warden
+// ============================================================
+model hostel_warden {
+  warden_id    String   @id @default(uuid()) @db.Char(36)
+  hostel_id    String   @db.Char(36)
+  warden_name  String   @db.VarChar(100)
+  warden_phone String?  @db.VarChar(15)
+  warden_email String?  @db.VarChar(100)
+  assigned_date DateTime? @db.Date
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  hostel       hostel   @relation(fields: [hostel_id], references: [hostel_id], onDelete: Cascade)
+
+  @@index([hostel_id, is_active], name: "idx_hw_hostel_active")
+}
+
+// ============================================================
+// TABLE 2: student  (BCNF: city/state removed)
 // ============================================================
 model student {
   student_id           String   @id @default(uuid()) @db.Char(36)
@@ -63,8 +93,6 @@ model student {
   blood_group          String?  @db.VarChar(5)
   permanent_address    String?  @db.Text
   current_address      String?  @db.Text
-  city                 String?  @db.VarChar(100)
-  state                String?  @db.VarChar(100)
   pincode              String?  @db.VarChar(10)
   admission_date       DateTime? @db.Date
   status               String   @default("Active") @db.VarChar(20)
@@ -72,6 +100,7 @@ model student {
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
+  pincode_ref          pincode_locality? @relation(fields: [pincode], references: [pincode], onUpdate: Cascade)
   guardians            student_guardian[]
   allocations          allocation[]
   fee_payments         feepayment[]
@@ -90,6 +119,7 @@ model student {
   @@index([reg_no], name: "idx_student_reg_no")
   @@index([department, course], name: "idx_student_dept_course")
   @@index([status], name: "idx_student_status")
+  @@index([pincode], name: "idx_student_pincode")
 }
 
 // ============================================================
@@ -133,6 +163,7 @@ model room {
   beds           bed[]
   complaints     complaint[]
   visitor_logs   visitor_log[]
+  maintenance_schedules maintenance_schedule[]
 
   @@unique([hostel_id, room_number])
   @@index([hostel_id], name: "idx_room_hostel")
@@ -162,12 +193,21 @@ model bed {
 }
 
 // ============================================================
-// TABLE 6: technician
+// 4NF: specialization (lookup)
+// ============================================================
+model specialization {
+  specialization_id   String @id @default(uuid()) @db.Char(36)
+  specialization_name String @unique @db.VarChar(100)
+
+  technicians         technician_specialization[]
+}
+
+// ============================================================
+// TABLE 6: technician  (4NF: specialization removed)
 // ============================================================
 model technician {
   technician_id  String   @id @default(uuid()) @db.Char(36)
   name           String   @db.VarChar(100)
-  specialization String?  @db.VarChar(100)
   phone          String?  @db.VarChar(15)
   email          String?  @db.VarChar(100)
   address        String?  @db.Text
@@ -182,8 +222,23 @@ model technician {
 
   hostel         hostel?  @relation(fields: [hostel_id], references: [hostel_id], onDelete: SetNull)
   auth_user      auth_user? @relation()
+  specializations technician_specialization[]
   complaints     complaint[]
   maintenance_schedules maintenance_schedule[]
+}
+
+// ============================================================
+// 4NF: technician_specialization (junction)
+// ============================================================
+model technician_specialization {
+  technician_id     String @db.Char(36)
+  specialization_id String @db.Char(36)
+
+  technician     technician     @relation(fields: [technician_id], references: [technician_id], onDelete: Cascade)
+  specialization specialization @relation(fields: [specialization_id], references: [specialization_id], onDelete: Cascade)
+
+  @@id([technician_id, specialization_id])
+  @@index([specialization_id], name: "idx_ts_specialization")
 }
 
 // ============================================================
@@ -240,7 +295,7 @@ model feepayment {
 }
 
 // ============================================================
-// TABLE 9: mess
+// TABLE 9: mess  (4NF: timing columns removed)
 // ============================================================
 model mess {
   mess_id          String   @id @default(uuid()) @db.Char(36)
@@ -255,16 +310,27 @@ model mess {
   last_inspection  DateTime? @db.Date
   license_number   String?  @db.VarChar(100)
   license_expiry   DateTime? @db.Date
-  timing_breakfast String?  @db.VarChar(50)
-  timing_lunch     String?  @db.VarChar(50)
-  timing_snacks    String?  @db.VarChar(50)
-  timing_dinner    String?  @db.VarChar(50)
   created_at       DateTime @default(now())
   updated_at       DateTime @updatedAt
 
   hostel           hostel   @relation(fields: [hostel_id], references: [hostel_id])
+  timings          mess_timing[]
   subscriptions    mess_subscription[]
   menus            menu[]
+}
+
+// ============================================================
+// 4NF: mess_timing
+// ============================================================
+model mess_timing {
+  mess_id    String   @db.Char(36)
+  meal_type  String   @db.VarChar(20)
+  time_start DateTime @db.Time(0)
+  time_end   DateTime @db.Time(0)
+
+  mess       mess     @relation(fields: [mess_id], references: [mess_id], onDelete: Cascade)
+
+  @@id([mess_id, meal_type])
 }
 
 // ============================================================
@@ -311,7 +377,7 @@ model menu {
 }
 
 // ============================================================
-// TABLE 12: laundry
+// TABLE 12: laundry  (4NF: service_types, operating_days removed)
 // ============================================================
 model laundry {
   laundry_id      String   @id @default(uuid()) @db.Char(36)
@@ -322,8 +388,6 @@ model laundry {
   vendor_email    String?  @db.VarChar(100)
   price_per_piece Decimal? @db.Decimal(8, 2)
   price_per_kg    Decimal? @db.Decimal(8, 2)
-  service_types   String?  @db.VarChar(255)
-  operating_days  String?  @db.VarChar(100)
   timing_open     DateTime? @db.Time(0)
   timing_close    DateTime? @db.Time(0)
   contract_start  DateTime? @db.Date
@@ -332,7 +396,33 @@ model laundry {
   updated_at      DateTime @updatedAt
 
   hostel          hostel   @relation(fields: [hostel_id], references: [hostel_id])
+  service_types   laundry_service_type[]
+  operating_days  laundry_operating_day[]
   requests        laundry_request[]
+}
+
+// ============================================================
+// 4NF: laundry_service_type
+// ============================================================
+model laundry_service_type {
+  laundry_id   String @db.Char(36)
+  service_type String @db.VarChar(50)
+
+  laundry      laundry @relation(fields: [laundry_id], references: [laundry_id], onDelete: Cascade)
+
+  @@id([laundry_id, service_type])
+}
+
+// ============================================================
+// 4NF: laundry_operating_day
+// ============================================================
+model laundry_operating_day {
+  laundry_id  String @db.Char(36)
+  day_of_week String @db.VarChar(10)
+
+  laundry     laundry @relation(fields: [laundry_id], references: [laundry_id], onDelete: Cascade)
+
+  @@id([laundry_id, day_of_week])
 }
 
 // ============================================================
@@ -386,7 +476,7 @@ model accesslog {
 }
 
 // ============================================================
-// TABLE 15: facility
+// TABLE 15: facility  (4NF: operating_days removed)
 // ============================================================
 model facility {
   facility_id      String   @id @default(uuid()) @db.Char(36)
@@ -394,7 +484,6 @@ model facility {
   facility_type    String?  @db.VarChar(50)
   hostel_id        String   @db.Char(36)
   capacity         Int?
-  operating_days   String?  @db.VarChar(100)
   timing_open      DateTime? @db.Time(0)
   timing_close     DateTime? @db.Time(0)
   in_charge_name   String?  @db.VarChar(100)
@@ -406,7 +495,20 @@ model facility {
   updated_at       DateTime @updatedAt
 
   hostel           hostel   @relation(fields: [hostel_id], references: [hostel_id])
+  operating_days   facility_operating_day[]
   bookings         facility_booking[]
+}
+
+// ============================================================
+// 4NF: facility_operating_day
+// ============================================================
+model facility_operating_day {
+  facility_id String @db.Char(36)
+  day_of_week String @db.VarChar(10)
+
+  facility    facility @relation(fields: [facility_id], references: [facility_id], onDelete: Cascade)
+
+  @@id([facility_id, day_of_week])
 }
 
 // ============================================================
@@ -506,13 +608,13 @@ model notice_board {
 }
 
 // ============================================================
-// TABLE 20: maintenance_schedule
+// TABLE 20: maintenance_schedule  (5NF: polymorphic FK fixed)
 // ============================================================
 model maintenance_schedule {
   schedule_id      String   @id @default(uuid()) @db.Char(36)
   hostel_id        String   @db.Char(36)
-  area_type        String?  @db.VarChar(50)
-  area_id          String?  @db.Char(36)
+  room_id          String?  @db.Char(36)
+  is_common_area   Boolean  @default(false)
   maintenance_type String?  @db.VarChar(100)
   scheduled_date   DateTime @db.Date
   completed_date   DateTime? @db.Date
@@ -523,11 +625,13 @@ model maintenance_schedule {
   created_at       DateTime @default(now())
 
   hostel           hostel     @relation(fields: [hostel_id], references: [hostel_id])
+  room             room?      @relation(fields: [room_id], references: [room_id], onDelete: SetNull)
   technician       technician? @relation(fields: [technician_id], references: [technician_id], onDelete: SetNull)
 
   @@index([hostel_id, status], name: "idx_msch_hostel_status")
   @@index([technician_id], name: "idx_msch_tech")
   @@index([scheduled_date], name: "idx_msch_scheduled_date")
+  @@index([room_id], name: "idx_msch_room")
 }
 
 // ============================================================
@@ -551,23 +655,38 @@ model store {
 }
 
 // ============================================================
-// TABLE 22: store_purchase
+// TABLE 22: store_purchase  (5NF: item_description, quantity removed)
 // ============================================================
 model store_purchase {
   purchase_id      String   @id @default(uuid()) @db.Char(36)
   student_id       String   @db.Char(36)
   store_id         String   @db.Char(36)
-  item_description String   @db.Text
-  quantity         Int      @default(1)
   total_amount     Decimal  @db.Decimal(10, 2)
   payment_mode     String?  @db.VarChar(50)
   purchase_date    DateTime @default(now())
 
   student          student  @relation(fields: [student_id], references: [student_id])
   store            store    @relation(fields: [store_id], references: [store_id])
+  items            store_purchase_item[]
 
   @@index([student_id], name: "idx_sp_student")
   @@index([store_id, purchase_date], name: "idx_sp_store_date")
+}
+
+// ============================================================
+// 5NF: store_purchase_item
+// ============================================================
+model store_purchase_item {
+  item_id     String  @id @default(uuid()) @db.Char(36)
+  purchase_id String  @db.Char(36)
+  item_name   String  @db.VarChar(100)
+  quantity    Int     @default(1)
+  unit_price  Decimal @db.Decimal(10, 2)
+
+  purchase    store_purchase @relation(fields: [purchase_id], references: [purchase_id], onDelete: Cascade)
+
+  @@index([purchase_id], name: "idx_spi_purchase")
+  @@index([item_name], name: "idx_spi_item_name")
 }
 
 // ============================================================
@@ -674,22 +793,39 @@ model gym_membership {
 }
 
 // ============================================================
-// TABLE 28: ambulance_service
+// BCNF: hospital
+// ============================================================
+model hospital {
+  hospital_id      String   @id @default(uuid()) @db.Char(36)
+  hospital_name    String   @db.VarChar(100)
+  hospital_address String?  @db.VarChar(255)
+  hospital_phone   String?  @db.VarChar(15)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  ambulances       ambulance_service[]
+
+  @@index([hospital_name], name: "idx_hospital_name")
+}
+
+// ============================================================
+// TABLE 28: ambulance_service  (BCNF: hospital extracted)
 // ============================================================
 model ambulance_service {
   ambulance_id      String   @id @default(uuid()) @db.Char(36)
   vehicle_number    String   @unique @db.VarChar(20)
   driver_name       String?  @db.VarChar(100)
   driver_phone      String?  @db.VarChar(15)
-  hospital_name     String?  @db.VarChar(100)
-  hospital_address  String?  @db.VarChar(255)
-  hospital_phone    String?  @db.VarChar(15)
+  hospital_id       String?  @db.Char(36)
   is_available      Boolean  @default(true)
   last_service_date DateTime? @db.Date
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 
+  hospital           hospital? @relation(fields: [hospital_id], references: [hospital_id], onDelete: SetNull)
   emergency_requests emergency_request[]
+
+  @@index([hospital_id], name: "idx_amb_hospital")
 }
 
 // ============================================================
