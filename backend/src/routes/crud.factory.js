@@ -87,9 +87,10 @@ function createCrudRouter(options) {
   // GET / — List with pagination
   const getRoute = async (req, res, next) => {
     try {
-      const { page, limit, sort, order } = req.query;
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 20;
       const skip = (page - 1) * limit;
-
+      const { sort, order } = req.query;
       const orderBy = sort ? { [sort]: order } : { created_at: 'desc' };
 
       let where = {};
