@@ -38,6 +38,7 @@ const updateComplaintSchema = z.object({
   cost_incurred: z.number().min(0).optional(),
 });
 
+// 4NF: timing columns removed → mess_timing table
 const createMessSchema = z.object({
   mess_name: z.string().min(1).max(100),
   mess_type: z.string().max(50).optional(),
@@ -47,10 +48,6 @@ const createMessSchema = z.object({
   manager_name: z.string().max(100).optional(),
   manager_phone: z.string().max(15).optional(),
   hygiene_rating: z.number().min(0).max(5).optional(),
-  timing_breakfast: z.string().max(50).optional(),
-  timing_lunch: z.string().max(50).optional(),
-  timing_snacks: z.string().max(50).optional(),
-  timing_dinner: z.string().max(50).optional(),
 });
 const updateMessSchema = createMessSchema.partial();
 
@@ -66,12 +63,12 @@ const createMenuSchema = z.object({
 });
 const updateMenuSchema = createMenuSchema.partial();
 
+// 4NF: operating_days removed → facility_operating_day table
 const createFacilitySchema = z.object({
   facility_name: z.string().min(1).max(100),
   facility_type: z.string().max(50).optional(),
   hostel_id: z.string().uuid(),
   capacity: z.number().int().min(1).optional(),
-  operating_days: z.string().max(100).optional(),
   timing_open: z.string().optional(),
   timing_close: z.string().optional(),
   in_charge_name: z.string().max(100).optional(),
@@ -122,6 +119,7 @@ const updateVisitorLogSchema = z.object({
   exit_time: z.coerce.date().optional(),
 });
 
+// 4NF: service_types → laundry_service_type, operating_days → laundry_operating_day
 const createLaundrySchema = z.object({
   laundry_name: z.string().min(1).max(100),
   hostel_id: z.string().uuid(),
@@ -130,8 +128,6 @@ const createLaundrySchema = z.object({
   vendor_email: z.string().email().max(100).optional(),
   price_per_piece: z.number().min(0).optional(),
   price_per_kg: z.number().min(0).optional(),
-  service_types: z.string().max(255).optional(),
-  operating_days: z.string().max(100).optional(),
 });
 const updateLaundrySchema = createLaundrySchema.partial();
 
@@ -160,11 +156,10 @@ const createStoreSchema = z.object({
 });
 const updateStoreSchema = createStoreSchema.partial();
 
+// 5NF: item_description, quantity removed → store_purchase_item table
 const createStorePurchaseSchema = z.object({
   student_id: z.string().uuid(),
   store_id: z.string().uuid(),
-  item_description: z.string().min(1),
-  quantity: z.number().int().min(1).default(1),
   total_amount: z.number().min(0),
   payment_mode: z.string().max(50).optional(),
 });
@@ -226,13 +221,12 @@ const updateEmergencyRequestSchema = z.object({
   notes: z.string().optional(),
 });
 
+// BCNF: hospital_name/address/phone removed → hospital table
 const createAmbulanceSchema = z.object({
   vehicle_number: z.string().min(1).max(20),
   driver_name: z.string().max(100).optional(),
   driver_phone: z.string().max(15).optional(),
-  hospital_name: z.string().max(100).optional(),
-  hospital_address: z.string().max(255).optional(),
-  hospital_phone: z.string().max(15).optional(),
+  hospital_id: z.string().uuid().optional(),
   is_available: z.boolean().default(true),
 });
 const updateAmbulanceSchema = createAmbulanceSchema.partial();
@@ -249,10 +243,11 @@ const createNoticeSchema = z.object({
 });
 const updateNoticeSchema = createNoticeSchema.partial();
 
+// 5NF: area_type + area_id replaced with room_id + is_common_area
 const createMaintenanceSchema = z.object({
   hostel_id: z.string().uuid(),
-  area_type: z.string().max(50).optional(),
-  area_id: z.string().uuid().optional(),
+  room_id: z.string().uuid().optional(),
+  is_common_area: z.boolean().default(false),
   maintenance_type: z.string().max(100).optional(),
   scheduled_date: z.coerce.date(),
   technician_id: z.string().uuid().optional(),
@@ -290,9 +285,9 @@ const createGuardianSchema = z.object({
 });
 const updateGuardianSchema = createGuardianSchema.partial();
 
+// 4NF: specialization removed → specialization + technician_specialization tables
 const createTechnicianSchema = z.object({
   name: z.string().min(1).max(100),
-  specialization: z.string().max(100).optional(),
   phone: z.string().max(15).optional(),
   email: z.string().email().max(100).optional(),
   address: z.string().optional(),

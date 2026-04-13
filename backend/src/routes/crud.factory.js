@@ -7,6 +7,12 @@ const { idempotency } = require('../middleware/idempotency');
 const { writeLimiter } = require('../middleware/rateLimiter');
 const { AppError } = require('../middleware/errorHandler');
 const { paginationQuery, idParam } = require('../schemas/common.schema');
+const {
+  withRetry,
+  withOptimisticLock,
+  VERSIONED_TABLES,
+  ConcurrencyConflictError,
+} = require('../lib/transaction');
 
 /**
  * Role-based access control middleware
@@ -192,6 +198,9 @@ function createCrudRouter(options) {
   router.post('/', ...postRouteMiddleware, postRoute);
 
   // PUT /:id — Update
+  // Enhanced with:
+  //   - Optimistic concurrency control (row_version check) for versioned tables
+  //   - Automatic deadlock retry via withRetry()
   const putRoute = async (req, res, next) => {
     try {
       let where = { [idField]: req.params.id };
@@ -211,11 +220,43 @@ function createCrudRouter(options) {
         }
       }
 
-      const record = await prismaModel.update({
-        where: { [idField]: req.params.id },
-        data: req.body,
-        include: includes,
-      });
+      // Extract row_version from body (client must send the version they read)
+      const { row_version, ...updateData } = req.body;
+
+      let record;
+
+      if (VERSIONED_TABLES.has(model) && row_version !== undefined) {
+        // ── Optimistic Concurrency Control ──
+        // Use version-checked update wrapped in deadlock retry.
+        // If another transaction modified the row since the client read it,
+        // withOptimisticLock throws ConcurrencyConflictError (HTTP 409).
+        record = await withRetry(
+          async (tx) => {
+            return withOptimisticLock({
+              model,
+              idField,
+              id: req.params.id,
+              expectedVersion: row_version,
+              data: updateData,
+              include: includes,
+            });
+          },
+          { maxRetries: 3 }
+        );
+      } else {
+        // ── Standard update (non-versioned table or no version provided) ──
+        // Still wrapped in withRetry for deadlock resilience
+        record = await withRetry(
+          async (tx) => {
+            return prismaModel.update({
+              where: { [idField]: req.params.id },
+              data: updateData,
+              include: includes,
+            });
+          },
+          { maxRetries: 3 }
+        );
+      }
 
       await invalidateCache(cachePrefix);
 
@@ -223,6 +264,14 @@ function createCrudRouter(options) {
 
       res.json({ success: true, data: record });
     } catch (err) {
+      // Return 409 for concurrency conflicts so clients know to retry
+      if (err instanceof ConcurrencyConflictError) {
+        return res.status(409).json({
+          success: false,
+          error: err.message,
+          hint: 'Re-fetch the record to get the latest row_version, then retry your update.',
+        });
+      }
       next(err);
     }
   };

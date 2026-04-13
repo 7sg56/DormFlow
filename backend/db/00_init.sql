@@ -1,18 +1,26 @@
 -- ============================================================
--- HOSTEL MANAGEMENT SYSTEM — 3NF SCHEMA
--- MySQL 8.0+ | UUID Primary Keys | 29 Tables
--- Changes from 1NF version:
---   1. student.hostel_id           REMOVED  (derive via allocation)
---   2. student.full_name           REMOVED  (transitive: first+last → full)
---   3. allocation.hostel_id        REMOVED  (derive via bed→room→hostel)
---   4. allocation.room_id          REMOVED  (derive via bed→room)
---   5. feepayment.hostel_id        REMOVED  (derive via student→hostel)
---   6. complaint.hostel_id         REMOVED  (derive via student→hostel)
---   7. visitor_log.hostel_id       REMOVED  (derive via student→hostel)
---   8. accesslog.hostel_id         REMOVED  (derive via student→hostel)
---   9. emergency_request.hostel_id REMOVED  (derive via student→hostel)
---  10. bed.is_available            REMOVED  (exact inverse of occupied)
--- All removed hostel_id FKs are restored in views (03_views.sql)
+-- HOSTEL MANAGEMENT SYSTEM — 5NF SCHEMA
+-- MySQL 8.0+ | UUID Primary Keys | 42 Tables
+--
+-- Normalization history (cumulative):
+--   1NF:  student.full_name split → first_name + last_name
+--   2NF:  (no changes — all PKs are single-column UUIDs)
+--   3NF:  Removed transitive dependencies:
+--         student.hostel_id, allocation.{hostel_id,room_id},
+--         feepayment.hostel_id, complaint.hostel_id,
+--         visitor_log.hostel_id, accesslog.hostel_id,
+--         emergency_request.hostel_id, bed.is_available
+--   BCNF: Extracted: hostel_warden, pincode_locality, hospital
+--         (non-key determinants → own tables)
+--   4NF:  Decomposed multi-valued deps:
+--         technician.specialization → specialization + junction
+--         laundry.service_types → laundry_service_type
+--         laundry.operating_days → laundry_operating_day
+--         facility.operating_days → facility_operating_day
+--         mess.timing_* → mess_timing
+--   5NF:  Fixed join dependencies:
+--         maintenance_schedule polymorphic FK → explicit room_id
+--         store_purchase items → store_purchase_item
 -- ============================================================
 
 DROP DATABASE IF EXISTS hostel_mgmt;
@@ -23,8 +31,21 @@ CREATE DATABASE IF NOT EXISTS hostel_mgmt
 USE hostel_mgmt;
 
 -- ============================================================
+-- TABLE: pincode_locality  [NEW — BCNF]
+-- Resolves: pincode → {city, state} determinant
+-- ============================================================
+CREATE TABLE pincode_locality (
+    pincode             VARCHAR(10)     NOT NULL PRIMARY KEY,
+    city                VARCHAR(100)    NOT NULL,
+    state               VARCHAR(100)    NOT NULL
+);
+
+-- ============================================================
 -- TABLE 1: hostel
--- (unchanged — no violations here)
+-- BCNF changes:
+--   REMOVED: warden_name, warden_phone, warden_email → hostel_warden
+--   REMOVED: city, state → derive via pincode_locality
+--   CHANGED: pincode → FK to pincode_locality
 -- ============================================================
 CREATE TABLE hostel (
     hostel_id           CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -32,24 +53,39 @@ CREATE TABLE hostel (
     type                VARCHAR(50)     NOT NULL,
     total_floors        INT             NOT NULL,
     address             VARCHAR(255),
-    city                VARCHAR(100),
-    state               VARCHAR(100),
     pincode             VARCHAR(10),
     established_year    YEAR,
     registration_no     VARCHAR(100)    UNIQUE,
-    warden_name         VARCHAR(100),
-    warden_phone        VARCHAR(15),
-    warden_email        VARCHAR(100),
     office_phone        VARCHAR(15),
     emergency_phone     VARCHAR(15),
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_hostel_pincode FOREIGN KEY (pincode) REFERENCES pincode_locality(pincode) ON UPDATE CASCADE
+);
+
+-- ============================================================
+-- TABLE: hostel_warden  [NEW — BCNF]
+-- Resolves: warden_name → {warden_phone, warden_email}
+-- ============================================================
+CREATE TABLE hostel_warden (
+    warden_id           CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+    hostel_id           CHAR(36)        NOT NULL,
+    warden_name         VARCHAR(100)    NOT NULL,
+    warden_phone        VARCHAR(15),
+    warden_email        VARCHAR(100),
+    assigned_date       DATE,
+    is_active           BOOLEAN         DEFAULT TRUE,
+    created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_hw_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE CASCADE
 );
 
 -- ============================================================
 -- TABLE 2: student
--- REMOVED: hostel_id  (student's hostel is determined by allocation)
--- REMOVED: full_name  (first_name + last_name → full_name is transitive)
+-- 1NF:  full_name split → first_name + last_name
+-- 3NF:  hostel_id REMOVED (derive via allocation)
+-- BCNF: city, state REMOVED → derive via pincode_locality
+--       pincode → FK to pincode_locality
 -- ============================================================
 CREATE TABLE student (
     student_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -69,19 +105,18 @@ CREATE TABLE student (
     blood_group         VARCHAR(5),
     permanent_address   TEXT,
     current_address     TEXT,
-    city                VARCHAR(100),
-    state               VARCHAR(100),
     pincode             VARCHAR(10),
     admission_date      DATE,
     status              VARCHAR(20)     DEFAULT 'Active',
     photo_url           VARCHAR(255),
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_student_pincode FOREIGN KEY (pincode) REFERENCES pincode_locality(pincode) ON UPDATE CASCADE
 );
 
 -- ============================================================
 -- TABLE 3: student_guardian
--- (unchanged)
+-- (unchanged through all NFs)
 -- ============================================================
 CREATE TABLE student_guardian (
     guardian_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -120,10 +155,7 @@ CREATE TABLE room (
 
 -- ============================================================
 -- TABLE 5: bed
--- REMOVED: is_available  (NOT occupied is trivially derived — storing it
---                         creates a transitive dependency: bed_id → occupied
---                         → is_available, and risks the two columns
---                         getting out of sync)
+-- 3NF: is_available REMOVED (NOT occupied is trivially derived)
 -- ============================================================
 CREATE TABLE bed (
     bed_id              CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -141,13 +173,21 @@ CREATE TABLE bed (
 );
 
 -- ============================================================
+-- TABLE: specialization  [NEW — 4NF]
+-- Lookup table for technician specializations
+-- ============================================================
+CREATE TABLE specialization (
+    specialization_id   CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+    specialization_name VARCHAR(100)    NOT NULL UNIQUE
+);
+
+-- ============================================================
 -- TABLE 6: technician
--- (unchanged)
+-- 4NF: specialization REMOVED → technician_specialization junction
 -- ============================================================
 CREATE TABLE technician (
     technician_id       CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     name                VARCHAR(100)    NOT NULL,
-    specialization      VARCHAR(100),
     phone               VARCHAR(15),
     email               VARCHAR(100),
     address             TEXT,
@@ -163,10 +203,21 @@ CREATE TABLE technician (
 );
 
 -- ============================================================
+-- TABLE: technician_specialization  [NEW — 4NF]
+-- Junction table: technician ↔ specialization (M:N)
+-- ============================================================
+CREATE TABLE technician_specialization (
+    technician_id       CHAR(36)        NOT NULL,
+    specialization_id   CHAR(36)        NOT NULL,
+    PRIMARY KEY (technician_id, specialization_id),
+    CONSTRAINT fk_ts_tech FOREIGN KEY (technician_id) REFERENCES technician(technician_id) ON DELETE CASCADE,
+    CONSTRAINT fk_ts_spec FOREIGN KEY (specialization_id) REFERENCES specialization(specialization_id) ON DELETE CASCADE
+);
+
+-- ============================================================
 -- TABLE 7: allocation
--- REMOVED: hostel_id  (bed → room → hostel, so hostel_id is transitive)
--- REMOVED: room_id    (bed → room, so room_id is transitive via bed_id)
--- To get room/hostel for an allocation: JOIN bed → room → hostel
+-- 3NF: hostel_id REMOVED (bed → room → hostel)
+-- 3NF: room_id REMOVED (bed → room)
 -- ============================================================
 CREATE TABLE allocation (
     allocation_id       CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -185,8 +236,7 @@ CREATE TABLE allocation (
 
 -- ============================================================
 -- TABLE 8: feepayment
--- REMOVED: hostel_id  (student_id → hostel_id via student table,
---                      so storing it here is a transitive dependency)
+-- 3NF: hostel_id REMOVED (student → allocation → hostel)
 -- ============================================================
 CREATE TABLE feepayment (
     payment_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -212,7 +262,8 @@ CREATE TABLE feepayment (
 
 -- ============================================================
 -- TABLE 9: mess
--- (unchanged)
+-- 4NF: timing_breakfast, timing_lunch, timing_snacks, timing_dinner
+--      REMOVED → mess_timing table
 -- ============================================================
 CREATE TABLE mess (
     mess_id             CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -227,13 +278,22 @@ CREATE TABLE mess (
     last_inspection     DATE,
     license_number      VARCHAR(100),
     license_expiry      DATE,
-    timing_breakfast    VARCHAR(50),
-    timing_lunch        VARCHAR(50),
-    timing_snacks       VARCHAR(50),
-    timing_dinner       VARCHAR(50),
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_mess_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id)
+);
+
+-- ============================================================
+-- TABLE: mess_timing  [NEW — 4NF]
+-- Resolves: mess_id ↠ {meal_type, timing}
+-- ============================================================
+CREATE TABLE mess_timing (
+    mess_id             CHAR(36)        NOT NULL,
+    meal_type           VARCHAR(20)     NOT NULL,
+    time_start          TIME            NOT NULL,
+    time_end            TIME            NOT NULL,
+    PRIMARY KEY (mess_id, meal_type),
+    CONSTRAINT fk_mt_mess FOREIGN KEY (mess_id) REFERENCES mess(mess_id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -276,7 +336,8 @@ CREATE TABLE menu (
 
 -- ============================================================
 -- TABLE 12: laundry
--- (unchanged)
+-- 4NF: service_types REMOVED → laundry_service_type
+-- 4NF: operating_days REMOVED → laundry_operating_day
 -- ============================================================
 CREATE TABLE laundry (
     laundry_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -287,8 +348,6 @@ CREATE TABLE laundry (
     vendor_email        VARCHAR(100),
     price_per_piece     DECIMAL(8,2),
     price_per_kg        DECIMAL(8,2),
-    service_types       VARCHAR(255),
-    operating_days      VARCHAR(100),
     timing_open         TIME,
     timing_close        TIME,
     contract_start      DATE,
@@ -296,6 +355,28 @@ CREATE TABLE laundry (
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_lau_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id)
+);
+
+-- ============================================================
+-- TABLE: laundry_service_type  [NEW — 4NF]
+-- Resolves: laundry_id ↠ service_type
+-- ============================================================
+CREATE TABLE laundry_service_type (
+    laundry_id          CHAR(36)        NOT NULL,
+    service_type        VARCHAR(50)     NOT NULL,
+    PRIMARY KEY (laundry_id, service_type),
+    CONSTRAINT fk_lst_laundry FOREIGN KEY (laundry_id) REFERENCES laundry(laundry_id) ON DELETE CASCADE
+);
+
+-- ============================================================
+-- TABLE: laundry_operating_day  [NEW — 4NF]
+-- Resolves: laundry_id ↠ operating_day
+-- ============================================================
+CREATE TABLE laundry_operating_day (
+    laundry_id          CHAR(36)        NOT NULL,
+    day_of_week         VARCHAR(10)     NOT NULL,
+    PRIMARY KEY (laundry_id, day_of_week),
+    CONSTRAINT fk_lod_laundry FOREIGN KEY (laundry_id) REFERENCES laundry(laundry_id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -323,8 +404,7 @@ CREATE TABLE laundry_request (
 
 -- ============================================================
 -- TABLE 14: accesslog
--- REMOVED: hostel_id  (student_id → hostel_id via active allocation,
---                      storing it here is transitive)
+-- 3NF: hostel_id REMOVED (student → allocation → hostel)
 -- ============================================================
 CREATE TABLE accesslog (
     log_id              CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -344,7 +424,7 @@ CREATE TABLE accesslog (
 
 -- ============================================================
 -- TABLE 15: facility
--- (unchanged)
+-- 4NF: operating_days REMOVED → facility_operating_day
 -- ============================================================
 CREATE TABLE facility (
     facility_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -352,7 +432,6 @@ CREATE TABLE facility (
     facility_type       VARCHAR(50),
     hostel_id           CHAR(36)        NOT NULL,
     capacity            INT,
-    operating_days      VARCHAR(100),
     timing_open         TIME,
     timing_close        TIME,
     in_charge_name      VARCHAR(100),
@@ -363,6 +442,17 @@ CREATE TABLE facility (
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_fac_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id)
+);
+
+-- ============================================================
+-- TABLE: facility_operating_day  [NEW — 4NF]
+-- Resolves: facility_id ↠ operating_day
+-- ============================================================
+CREATE TABLE facility_operating_day (
+    facility_id         CHAR(36)        NOT NULL,
+    day_of_week         VARCHAR(10)     NOT NULL,
+    PRIMARY KEY (facility_id, day_of_week),
+    CONSTRAINT fk_fod_facility FOREIGN KEY (facility_id) REFERENCES facility(facility_id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -386,9 +476,7 @@ CREATE TABLE facility_booking (
 
 -- ============================================================
 -- TABLE 17: complaint
--- REMOVED: hostel_id  (student_id → hostel via allocation; also
---                      room_id → hostel via room.hostel_id — both
---                      paths make hostel_id here transitive)
+-- 3NF: hostel_id REMOVED (room → hostel; student → allocation → hostel)
 -- ============================================================
 CREATE TABLE complaint (
     complaint_id        CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -412,7 +500,7 @@ CREATE TABLE complaint (
 
 -- ============================================================
 -- TABLE 18: visitor_log
--- REMOVED: hostel_id  (student_id → hostel via allocation — transitive)
+-- 3NF: hostel_id REMOVED (student → allocation → hostel)
 -- ============================================================
 CREATE TABLE visitor_log (
     visitor_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
@@ -455,13 +543,14 @@ CREATE TABLE notice_board (
 
 -- ============================================================
 -- TABLE 20: maintenance_schedule
--- (unchanged)
+-- 5NF: area_type + area_id REMOVED (polymorphic FK)
+--      ADDED: room_id FK (nullable) + is_common_area boolean
 -- ============================================================
 CREATE TABLE maintenance_schedule (
     schedule_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     hostel_id           CHAR(36)        NOT NULL,
-    area_type           VARCHAR(50),
-    area_id             CHAR(36),
+    room_id             CHAR(36),
+    is_common_area      BOOLEAN         DEFAULT FALSE,
     maintenance_type    VARCHAR(100),
     scheduled_date      DATE            NOT NULL,
     completed_date      DATE,
@@ -471,6 +560,7 @@ CREATE TABLE maintenance_schedule (
     cost                DECIMAL(10,2),
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_msch_hostel FOREIGN KEY (hostel_id)     REFERENCES hostel(hostel_id),
+    CONSTRAINT fk_msch_room   FOREIGN KEY (room_id)       REFERENCES room(room_id) ON DELETE SET NULL,
     CONSTRAINT fk_msch_tech   FOREIGN KEY (technician_id) REFERENCES technician(technician_id) ON DELETE SET NULL
 );
 
@@ -495,19 +585,30 @@ CREATE TABLE store (
 
 -- ============================================================
 -- TABLE 22: store_purchase
--- (unchanged)
+-- 5NF: item_description + quantity REMOVED → store_purchase_item
 -- ============================================================
 CREATE TABLE store_purchase (
     purchase_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     student_id          CHAR(36)        NOT NULL,
     store_id            CHAR(36)        NOT NULL,
-    item_description    TEXT            NOT NULL,
-    quantity            INT             DEFAULT 1,
     total_amount        DECIMAL(10,2)   NOT NULL,
     payment_mode        VARCHAR(50),
     purchase_date       DATETIME        DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_sp_student FOREIGN KEY (student_id) REFERENCES student(student_id),
     CONSTRAINT fk_sp_store   FOREIGN KEY (store_id)   REFERENCES store(store_id)
+);
+
+-- ============================================================
+-- TABLE: store_purchase_item  [NEW — 5NF]
+-- Resolves: join dependency on multi-item purchases
+-- ============================================================
+CREATE TABLE store_purchase_item (
+    item_id             CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+    purchase_id         CHAR(36)        NOT NULL,
+    item_name           VARCHAR(100)    NOT NULL,
+    quantity            INT             NOT NULL DEFAULT 1,
+    unit_price          DECIMAL(10,2)   NOT NULL,
+    CONSTRAINT fk_spi_purchase FOREIGN KEY (purchase_id) REFERENCES store_purchase(purchase_id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -607,26 +708,39 @@ CREATE TABLE gym_membership (
 );
 
 -- ============================================================
+-- TABLE: hospital  [NEW — BCNF]
+-- Resolves: hospital_name → {hospital_address, hospital_phone}
+-- ============================================================
+CREATE TABLE hospital (
+    hospital_id         CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+    hospital_name       VARCHAR(100)    NOT NULL,
+    hospital_address    VARCHAR(255),
+    hospital_phone      VARCHAR(15),
+    created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ============================================================
 -- TABLE 28: ambulance_service
--- (unchanged)
+-- BCNF: hospital_name, hospital_address, hospital_phone REMOVED
+--       ADDED: hospital_id FK → hospital
 -- ============================================================
 CREATE TABLE ambulance_service (
     ambulance_id        CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
     vehicle_number      VARCHAR(20)     NOT NULL UNIQUE,
     driver_name         VARCHAR(100),
     driver_phone        VARCHAR(15),
-    hospital_name       VARCHAR(100),
-    hospital_address    VARCHAR(255),
-    hospital_phone      VARCHAR(15),
+    hospital_id         CHAR(36),
     is_available        BOOLEAN         DEFAULT TRUE,
     last_service_date   DATE,
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
-    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_amb_hospital FOREIGN KEY (hospital_id) REFERENCES hospital(hospital_id) ON DELETE SET NULL
 );
 
 -- ============================================================
 -- TABLE 29: emergency_request
--- REMOVED: hostel_id  (student_id → hostel via allocation — transitive)
+-- 3NF: hostel_id REMOVED (student → allocation → hostel)
 -- ============================================================
 CREATE TABLE emergency_request (
     request_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,

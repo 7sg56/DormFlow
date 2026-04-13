@@ -1,6 +1,6 @@
 -- ============================================================
--- HOSTEL MANAGEMENT SYSTEM — INDEXES
--- MySQL 8.0+ | Run AFTER 01_init.sql
+-- HOSTEL MANAGEMENT SYSTEM — INDEXES (5NF)
+-- MySQL 8.0+ | Run AFTER 00_init.sql
 -- Strategy:
 --   1. FK columns          → speed up JOIN and ON DELETE lookups
 --   2. Filter columns      → WHERE clauses in common queries
@@ -10,6 +10,27 @@
 -- ============================================================
 
 USE hostel_mgmt;
+
+-- ============================================================
+-- pincode_locality  [NEW — BCNF]
+-- PK on pincode is auto-indexed
+-- ============================================================
+
+-- ============================================================
+-- hostel
+-- ============================================================
+
+-- FK to pincode_locality
+CREATE INDEX idx_hostel_pincode
+    ON hostel (pincode);
+
+-- ============================================================
+-- hostel_warden  [NEW — BCNF]
+-- ============================================================
+
+-- Active warden for a hostel (most common query)
+CREATE INDEX idx_hw_hostel_active
+    ON hostel_warden (hostel_id, is_active);
 
 -- ============================================================
 -- student
@@ -25,6 +46,10 @@ CREATE INDEX idx_student_dept_course
 
 CREATE INDEX idx_student_status
     ON student (status);
+
+-- FK to pincode_locality
+CREATE INDEX idx_student_pincode
+    ON student (pincode);
 
 -- ============================================================
 -- student_guardian
@@ -54,6 +79,18 @@ CREATE INDEX idx_room_type_rent
 -- FK join + availability filter — most common bed query
 CREATE INDEX idx_bed_room_occupied
     ON bed (room_id, occupied);
+
+-- ============================================================
+-- specialization  [NEW — 4NF]
+-- PK + UNIQUE on specialization_name auto-indexed
+-- ============================================================
+
+-- ============================================================
+-- technician_specialization  [NEW — 4NF]
+-- Composite PK auto-indexed; add reverse lookup
+-- ============================================================
+CREATE INDEX idx_ts_specialization
+    ON technician_specialization (specialization_id);
 
 -- ============================================================
 -- allocation
@@ -98,12 +135,27 @@ CREATE INDEX idx_ms_mess_status
     ON mess_subscription (mess_id, status);
 
 -- ============================================================
+-- mess_timing  [NEW — 4NF]
+-- Composite PK auto-indexed
+-- ============================================================
+
+-- ============================================================
 -- menu
 -- ============================================================
 
 -- Weekly menu display (mess + day + meal_type)
 CREATE INDEX idx_menu_mess_day_meal
     ON menu (mess_id, day_of_week, meal_type);
+
+-- ============================================================
+-- laundry_service_type  [NEW — 4NF]
+-- Composite PK auto-indexed
+-- ============================================================
+
+-- ============================================================
+-- laundry_operating_day  [NEW — 4NF]
+-- Composite PK auto-indexed
+-- ============================================================
 
 -- ============================================================
 -- laundry_request
@@ -130,6 +182,11 @@ CREATE INDEX idx_al_student_entry
 -- Late entry audit
 CREATE INDEX idx_al_late
     ON accesslog (is_late_entry, entry_time);
+
+-- ============================================================
+-- facility_operating_day  [NEW — 4NF]
+-- Composite PK auto-indexed
+-- ============================================================
 
 -- ============================================================
 -- facility_booking
@@ -172,7 +229,7 @@ CREATE INDEX idx_nb_hostel_expiry
     ON notice_board (hostel_id, expiry_date);
 
 -- ============================================================
--- maintenance_schedule
+-- maintenance_schedule  [MODIFIED — 5NF]
 -- ============================================================
 
 CREATE INDEX idx_msch_hostel_status
@@ -184,6 +241,10 @@ CREATE INDEX idx_msch_tech
 CREATE INDEX idx_msch_scheduled_date
     ON maintenance_schedule (scheduled_date);
 
+-- NEW: index on room_id FK (5NF fix)
+CREATE INDEX idx_msch_room
+    ON maintenance_schedule (room_id);
+
 -- ============================================================
 -- store_purchase
 -- ============================================================
@@ -193,6 +254,23 @@ CREATE INDEX idx_sp_student
 
 CREATE INDEX idx_sp_store_date
     ON store_purchase (store_id, purchase_date);
+
+-- ============================================================
+-- store_purchase_item  [NEW — 5NF]
+-- ============================================================
+
+CREATE INDEX idx_spi_purchase
+    ON store_purchase_item (purchase_id);
+
+CREATE INDEX idx_spi_item_name
+    ON store_purchase_item (item_name);
+
+-- ============================================================
+-- hospital  [NEW — BCNF]
+-- ============================================================
+
+CREATE INDEX idx_hospital_name
+    ON hospital (hospital_name);
 
 -- ============================================================
 -- pharmacy_visit
@@ -213,6 +291,13 @@ CREATE INDEX idx_gm_student_status
 
 CREATE INDEX idx_gm_gym_end_date
     ON gym_membership (gym_id, end_date);
+
+-- ============================================================
+-- ambulance_service  [MODIFIED — BCNF]
+-- ============================================================
+
+CREATE INDEX idx_amb_hospital
+    ON ambulance_service (hospital_id);
 
 -- ============================================================
 -- emergency_request

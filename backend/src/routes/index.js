@@ -283,7 +283,7 @@ router.use('/complaints', createCrudRouter({
   includes: {
     student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
     room: { select: { room_id: true, room_number: true } },
-    technician: { select: { technician_id: true, name: true, specialization: true } },
+    technician: { select: { technician_id: true, name: true, specializations: { include: { specialization: true } } } },
   },
   allowedRoles: {
     get: ['admin', 'warden', 'student', 'technician'],
@@ -643,7 +643,8 @@ router.use('/maintenance', createCrudRouter({
   updateSchema: updateMaintenanceSchema,
   includes: {
     hostel: { select: { hostel_id: true, hostel_name: true } },
-    technician: { select: { technician_id: true, name: true, specialization: true } },
+    room: { select: { room_id: true, room_number: true } },
+    technician: { select: { technician_id: true, name: true, specializations: { include: { specialization: true } } } },
   },
   allowedRoles: {
     get: ['admin', 'warden', 'student', 'technician'],
@@ -682,6 +683,7 @@ router.use('/technicians', createCrudRouter({
   updateSchema: updateTechnicianSchema,
   includes: {
     hostel: { select: { hostel_id: true, hostel_name: true } },
+    specializations: { include: { specialization: true } },
   },
   allowedRoles: {
     get: ['admin', 'warden', 'student', 'technician'],
