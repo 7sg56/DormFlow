@@ -32,7 +32,7 @@ GET /api/auth/me
 }
 ```
 
-> Register, login, logout, and password reset are handled entirely by Clerk's hosted UI. No custom auth endpoints exist.
+> Sign-in methods: **Google SSO** and **Email**. Register, login, logout, and password reset are handled entirely by Clerk's hosted UI. No custom auth endpoints exist.
 
 ---
 
