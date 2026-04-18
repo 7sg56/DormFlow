@@ -19,7 +19,7 @@ export default function Home() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <Button asChild size="lg" className="text-lg px-8 py-6">
-                  <Link href="/login">
+                  <Link href="/sign-in">
                     Get Started
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Link>
@@ -170,7 +170,7 @@ export default function Home() {
                   ))}
                 </ul>
                 <Button asChild variant="default" className="w-full mt-4">
-                  <Link href="/login">Login as {roleCard.role}</Link>
+                  <Link href="/sign-in">Login as {roleCard.role}</Link>
                 </Button>
               </div>
             ))}
@@ -187,12 +187,12 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6 bg-white text-primary hover:bg-white/90">
-              <Link href="/login">
+              <Link href="/sign-in">
                 Login
               </Link>
             </Button>
             <Button asChild size="lg" className="text-lg px-8 py-6 bg-primary-foreground text-primary hover:bg-primary-foreground/90">
-              <Link href="/register">
+              <Link href="/sign-up">
                 Register Student Account
               </Link>
             </Button>
