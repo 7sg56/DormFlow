@@ -1,329 +1,114 @@
-const { Router } = require('express');
-const prisma = require('../lib/prisma');
-const logger = require('../lib/logger');
-const { validate } = require('../middleware/validate');
-const { cacheMiddleware, invalidateCache } = require('../middleware/cache');
-const { idempotency } = require('../middleware/idempotency');
-const { writeLimiter } = require('../middleware/rateLimiter');
-const { AppError } = require('../middleware/errorHandler');
-const { paginationQuery, idParam } = require('../schemas/common.schema');
-const {
-  withRetry,
-  withOptimisticLock,
-  VERSIONED_TABLES,
-  ConcurrencyConflictError,
-} = require('../lib/transaction');
+const { query } = require('../lib/db');
 
 /**
- * Role-based access control middleware
- * Creates an authorize middleware for specific roles per operation
- */
-function createRoleAuthorize(options) {
-  const { get, post, put, delete: del } = options;
-
-  return {
-    forGet: get ? authorize(...get) : undefined,
-    forPost: post ? authorize(...post) : undefined,
-    forPut: put ? authorize(...put) : undefined,
-    forDelete: del ? authorize(...del) : undefined,
-  };
-}
-
-/**
- * Generic CRUD router factory with RBAC support
- * Creates standard REST endpoints for any Prisma model
+ * Generic CRUD route factory using raw MySQL queries.
+ * Returns a Fastify plugin function.
  *
- * @param {object} options
- * @param {string} options.model - Prisma model name
- * @param {string} options.idField - Primary key field name
- * @param {string} options.cachePrefix - Cache key prefix
- * @param {object} options.createSchema - Zod schema for create
- * @param {object} options.updateSchema - Zod schema for update
- * @param {object} [options.includes] - Prisma include for relations
- * @param {number} [options.cacheTtl] - Cache TTL in seconds
- * @param {object} options.allowedRoles - Roles allowed per operation
- * @param {array} options.allowedRoles.get - Roles allowed for GET operations
- * @param {array} options.allowedRoles.post - Roles allowed for POST operations
- * @param {array} options.allowedRoles.put - Roles allowed for PUT operations
- * @param {array} options.allowedRoles.delete - Roles allowed for DELETE operations
- * @param {function} options.filterByUser - Function to filter data by user context
- * @param {boolean} options.authenticateAll - If true, apply authenticate to all routes (default: true)
+ * @param {object} opts
+ * @param {string} opts.table        — MySQL table name
+ * @param {string} opts.idColumn     — Primary key column name
+ * @param {string} [opts.label]      — Human label for responses
+ * @param {string} [opts.listQuery]  — Custom SELECT for list
+ * @param {string} [opts.getQuery]   — Custom SELECT for get-by-id
  */
-function createCrudRouter(options) {
+function createCrudRoutes(opts) {
   const {
-    model,
-    idField,
-    cachePrefix,
-    createSchema,
-    updateSchema,
-    includes = {},
-    cacheTtl = 300,
-    allowedRoles = {},
-    filterByUser = null,
-    authenticateAll = true,
-  } = options;
+    table,
+    idColumn,
+    label = table,
+    listQuery,
+    getQuery,
+  } = opts;
 
-  const router = Router();
-  const prismaModel = prisma[model];
+  return async function (fastify) {
+    // ── LIST (paginated) ───────────────────────────────────
+    fastify.get('/', async (request) => {
+      const page = Math.max(1, parseInt(request.query.page) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(request.query.limit) || 20));
+      const offset = (page - 1) * limit;
+      const sort = (request.query.sort || 'created_at').replace(/[^a-zA-Z0-9_]/g, '');
+      const order = request.query.order === 'asc' ? 'ASC' : 'DESC';
 
-  if (!prismaModel) {
-    throw new Error(`Prisma model "${model}" not found`);
-  }
+      const baseQuery = listQuery || `SELECT * FROM ${table}`;
+      const sql = `${baseQuery} ORDER BY ${sort} ${order} LIMIT ? OFFSET ?`;
+      const [rows] = await query(sql, [limit, offset]);
+      const [[{ total }]] = await query(`SELECT COUNT(*) AS total FROM ${table}`);
 
-  // Create RBAC middleware
-  const { forGet, forPost, forPut, forDelete } = createRoleAuthorize(allowedRoles);
-
-  /**
-   * Apply user context filter to query
-   */
-  async function applyUserFilter(req, query) {
-    if (!filterByUser || !req.user) return query;
-
-    try {
-      const filter = await filterByUser(req);
-      if (filter && Object.keys(filter).length > 0) {
-        return { ...query, ...filter };
-      }
-    } catch (err) {
-      logger.warn('Filter by user failed', { error: err.message });
-    }
-    return query;
-  }
-
-  // GET / — List with pagination
-  const getRoute = async (req, res, next) => {
-    try {
-      const page = parseInt(req.query.page, 10) || 1;
-      const limit = parseInt(req.query.limit, 10) || 20;
-      const skip = (page - 1) * limit;
-      const { sort, order } = req.query;
-      const orderBy = sort ? { [sort]: order } : { created_at: 'desc' };
-
-      let where = {};
-      where = await applyUserFilter(req, where);
-
-      const [data, total] = await Promise.all([
-        prismaModel.findMany({
-          skip,
-          take: limit,
-          orderBy,
-          include: includes,
-          where,
-        }),
-        prismaModel.count({ where }),
-      ]);
-
-      res.json({
+      return {
         success: true,
-        data,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      });
-    } catch (err) {
-      next(err);
-    }
-  };
+        data: rows,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      };
+    });
 
-  const getRouteMiddleware = [];
-  if (authenticateAll) getRouteMiddleware.push(require('../middleware/auth').authenticate);
-  if (forGet) getRouteMiddleware.push(forGet);
-  getRouteMiddleware.push(cacheMiddleware(cachePrefix, cacheTtl));
-  getRouteMiddleware.push(validate({ query: paginationQuery }));
-  router.get('/', ...getRouteMiddleware, getRoute);
-
-  // GET /:id — Get single record
-  const getByIdRoute = async (req, res, next) => {
-    try {
-      let where = { [idField]: req.params.id };
-      where = await applyUserFilter(req, where);
-
-      const record = await prismaModel.findFirst({
-        where,
-        include: includes,
-      });
-
-      if (!record) {
-        throw new AppError(404, `${model} not found`);
+    // ── GET BY ID ──────────────────────────────────────────
+    fastify.get('/:id', async (request, reply) => {
+      const sql = getQuery
+        ? `${getQuery} WHERE t.${idColumn} = ?`
+        : `SELECT * FROM ${table} WHERE ${idColumn} = ?`;
+      const [rows] = await query(sql, [request.params.id]);
+      if (!rows.length) {
+        return reply.status(404).send({ success: false, error: `${label} not found` });
       }
+      return { success: true, data: rows[0] };
+    });
 
-      res.json({ success: true, data: record });
-    } catch (err) {
-      next(err);
-    }
-  };
+    // ── CREATE ─────────────────────────────────────────────
+    fastify.post('/', async (request, reply) => {
+      const body = request.body;
+      const columns = Object.keys(body);
+      const values = Object.values(body);
+      const placeholders = columns.map(() => '?').join(', ');
+      const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
 
-  const getByIdRouteMiddleware = [];
-  if (authenticateAll) getByIdRouteMiddleware.push(require('../middleware/auth').authenticate);
-  if (forGet) getByIdRouteMiddleware.push(forGet);
-  getByIdRouteMiddleware.push(cacheMiddleware(cachePrefix, cacheTtl));
-  getByIdRouteMiddleware.push(validate({ params: idParam }));
-  router.get('/:id', ...getByIdRouteMiddleware, getByIdRoute);
-
-  // POST / — Create
-  const postRoute = async (req, res, next) => {
-    try {
-      // Check ownership for warden updating their own hostel
-      if (filterByUser && req.user && req.user.role === 'warden') {
-        const filter = await filterByUser(req);
-        if (filter && Object.keys(filter).length > 0) {
-          req.body = { ...req.body, ...filter };
+      try {
+        await query(sql, values);
+      } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') {
+          return reply.status(409).send({ success: false, error: 'Duplicate record' });
         }
+        throw err;
       }
 
-      const record = await prismaModel.create({
-        data: req.body,
-        include: includes,
-      });
+      const id = body[idColumn];
+      if (id) {
+        const [rows] = await query(`SELECT * FROM ${table} WHERE ${idColumn} = ?`, [id]);
+        return reply.status(201).send({ success: true, data: rows[0] });
+      }
+      return reply.status(201).send({ success: true, data: body });
+    });
 
-      await invalidateCache(cachePrefix);
+    // ── UPDATE ─────────────────────────────────────────────
+    fastify.put('/:id', async (request, reply) => {
+      const body = request.body;
+      const columns = Object.keys(body);
+      if (!columns.length) {
+        return reply.status(400).send({ success: false, error: 'No fields to update' });
+      }
 
-      logger.info(`Created ${model}`, { id: record[idField] });
+      const setClause = columns.map((col) => `${col} = ?`).join(', ');
+      const values = [...Object.values(body), request.params.id];
+      const [result] = await query(
+        `UPDATE ${table} SET ${setClause} WHERE ${idColumn} = ?`, values
+      );
 
-      res.status(201).json({ success: true, data: record });
-    } catch (err) {
-      next(err);
-    }
+      if (result.affectedRows === 0) {
+        return reply.status(404).send({ success: false, error: `${label} not found` });
+      }
+
+      const [rows] = await query(`SELECT * FROM ${table} WHERE ${idColumn} = ?`, [request.params.id]);
+      return { success: true, data: rows[0] };
+    });
+
+    // ── DELETE ─────────────────────────────────────────────
+    fastify.delete('/:id', async (request, reply) => {
+      const [result] = await query(`DELETE FROM ${table} WHERE ${idColumn} = ?`, [request.params.id]);
+      if (result.affectedRows === 0) {
+        return reply.status(404).send({ success: false, error: `${label} not found` });
+      }
+      return { success: true, message: `${label} deleted` };
+    });
   };
-
-  const postRouteMiddleware = [];
-  if (authenticateAll) postRouteMiddleware.push(require('../middleware/auth').authenticate);
-  if (forPost) postRouteMiddleware.push(forPost);
-  postRouteMiddleware.push(writeLimiter);
-  postRouteMiddleware.push(idempotency);
-  postRouteMiddleware.push(validate({ body: createSchema }));
-  router.post('/', ...postRouteMiddleware, postRoute);
-
-  // PUT /:id — Update
-  // Enhanced with:
-  //   - Optimistic concurrency control (row_version check) for versioned tables
-  //   - Automatic deadlock retry via withRetry()
-  const putRoute = async (req, res, next) => {
-    try {
-      let where = { [idField]: req.params.id };
-      where = await applyUserFilter(req, where);
-
-      // Check if record exists and user has access
-      const existing = await prismaModel.findFirst({ where });
-      if (!existing) {
-        throw new AppError(404, `${model} not found`);
-      }
-
-      // Check ownership for warden updating their own hostel
-      if (filterByUser && req.user && req.user.role === 'warden') {
-        const filter = await filterByUser(req);
-        if (filter && Object.keys(filter).length > 0) {
-          req.body = { ...req.body, ...filter };
-        }
-      }
-
-      // Extract row_version from body (client must send the version they read)
-      const { row_version, ...updateData } = req.body;
-
-      let record;
-
-      if (VERSIONED_TABLES.has(model) && row_version !== undefined) {
-        // ── Optimistic Concurrency Control ──
-        // Use version-checked update wrapped in deadlock retry.
-        // If another transaction modified the row since the client read it,
-        // withOptimisticLock throws ConcurrencyConflictError (HTTP 409).
-        record = await withRetry(
-          async (tx) => {
-            return withOptimisticLock({
-              model,
-              idField,
-              id: req.params.id,
-              expectedVersion: row_version,
-              data: updateData,
-              include: includes,
-            });
-          },
-          { maxRetries: 3 }
-        );
-      } else {
-        // ── Standard update (non-versioned table or no version provided) ──
-        // Still wrapped in withRetry for deadlock resilience
-        record = await withRetry(
-          async (tx) => {
-            return prismaModel.update({
-              where: { [idField]: req.params.id },
-              data: updateData,
-              include: includes,
-            });
-          },
-          { maxRetries: 3 }
-        );
-      }
-
-      await invalidateCache(cachePrefix);
-
-      logger.info(`Updated ${model}`, { id: req.params.id });
-
-      res.json({ success: true, data: record });
-    } catch (err) {
-      // Return 409 for concurrency conflicts so clients know to retry
-      if (err instanceof ConcurrencyConflictError) {
-        return res.status(409).json({
-          success: false,
-          error: err.message,
-          hint: 'Re-fetch the record to get the latest row_version, then retry your update.',
-        });
-      }
-      next(err);
-    }
-  };
-
-  const putRouteMiddleware = [];
-  if (authenticateAll) putRouteMiddleware.push(require('../middleware/auth').authenticate);
-  if (forPut) putRouteMiddleware.push(forPut);
-  putRouteMiddleware.push(writeLimiter);
-  putRouteMiddleware.push(validate({ params: idParam, body: updateSchema }));
-  router.put('/:id', ...putRouteMiddleware, putRoute);
-
-  // DELETE /:id — Delete
-  const deleteRoute = async (req, res, next) => {
-    try {
-      let where = { [idField]: req.params.id };
-      where = await applyUserFilter(req, where);
-
-      // Check if record exists and user has access
-      const existing = await prismaModel.findFirst({ where });
-      if (!existing) {
-        throw new AppError(404, `${model} not found`);
-      }
-
-      await prismaModel.delete({
-        where: { [idField]: req.params.id },
-      });
-
-      await invalidateCache(cachePrefix);
-
-      logger.info(`Deleted ${model}`, { id: req.params.id });
-
-      res.json({ success: true, message: `${model} deleted` });
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  const deleteRouteMiddleware = [];
-  if (authenticateAll) deleteRouteMiddleware.push(require('../middleware/auth').authenticate);
-  if (forDelete) deleteRouteMiddleware.push(forDelete);
-  deleteRouteMiddleware.push(writeLimiter);
-  deleteRouteMiddleware.push(validate({ params: idParam }));
-  router.delete('/:id', ...deleteRouteMiddleware, deleteRoute);
-
-  return router;
 }
 
-/**
- * Helper function to authorize middleware
- */
-function authorize(...roles) {
-  return require('../middleware/auth').authorize(...roles);
-}
-
-module.exports = { createCrudRouter };
+module.exports = { createCrudRoutes };
