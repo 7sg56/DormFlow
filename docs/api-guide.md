@@ -36,6 +36,57 @@ GET /api/auth/me
 
 ---
 
+## Role-Based Access Control (RBAC)
+
+Three end-user roles exist. **Admin** is promoted manually via Clerk dashboard metadata.
+
+| Role | Set via | Scope |
+|------|---------|-------|
+| `warden` / `admin` | Onboarding or Clerk dashboard | Full CRUD on most entities |
+| `technician` | Onboarding | Complaints (read/resolve), own profile |
+| `student` | Onboarding | Own records, complaints, visitor logs, read-only amenities |
+
+### Permission Matrix
+
+| Entity | Warden | Technician | Student |
+|--------|--------|------------|---------|
+| hostel, hostel_warden | R, U | - | R |
+| student | C, R, U, D | R (basic) | R, U (self) |
+| room, bed, allocation | C, R, U, D | R | R (self) |
+| feepayment | C, R, U | - | R (self) |
+| complaint | C, R, U (assign) | R, U (resolve) | C, R, U (self) |
+| visitor_log | C, R, U | - | C, R (self) |
+| technician | C, R, U, D | R, U (self) | - |
+| mess, laundry | C, R, U, D | - | R |
+| dashboard/* | Full | complaint-board only | - |
+
+### Onboarding
+
+After Clerk sign-up, users must link their account to a DB record:
+
+```http
+POST /api/onboarding/link
+Content-Type: application/json
+
+{ "role": "student", "identifier": "REG2024001" }
+```
+
+| Role | Identifier | Matched Against |
+|------|-----------|-----------------|
+| `student` | Registration number | `student.reg_no` |
+| `warden` | Email address | `hostel_warden.warden_email` |
+| `technician` | Phone number | `technician.phone` |
+
+**Status check:**
+
+```http
+GET /api/onboarding/status
+```
+
+Returns `{ onboarded: true/false, role: string|null }`.
+
+---
+
 ## Standard CRUD Pattern
 
 Every entity below follows this pattern unless noted otherwise.
