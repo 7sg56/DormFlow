@@ -1,4 +1,5 @@
 const { query } = require('../lib/db');
+const { authorize } = require('../plugins/auth');
 
 /**
  * Generic CRUD route factory using raw MySQL queries.
@@ -10,6 +11,12 @@ const { query } = require('../lib/db');
  * @param {string} [opts.label]      — Human label for responses
  * @param {string} [opts.listQuery]  — Custom SELECT for list
  * @param {string} [opts.getQuery]   — Custom SELECT for get-by-id
+ * @param {object} [opts.rbac]       — Per-operation role restrictions
+ * @param {string[]|null} [opts.rbac.list]   — Roles allowed to list, null = disabled
+ * @param {string[]|null} [opts.rbac.get]    — Roles allowed to get by id
+ * @param {string[]|null} [opts.rbac.create] — Roles allowed to create
+ * @param {string[]|null} [opts.rbac.update] — Roles allowed to update
+ * @param {string[]|null} [opts.rbac.delete] — Roles allowed to delete
  */
 function createCrudRoutes(opts) {
   const {
@@ -18,11 +25,37 @@ function createCrudRoutes(opts) {
     label = table,
     listQuery,
     getQuery,
+    rbac,
   } = opts;
+
+  /**
+   * Build preHandler array for an operation.
+   * If rbac is defined and the operation is null, returns a handler that 403s.
+   * If rbac is defined and has roles, returns authorize(...roles).
+   * If rbac is not defined, returns empty array (no restriction beyond auth).
+   */
+  function getPreHandlers(operation) {
+    if (!rbac) return [];
+    const allowed = rbac[operation];
+    if (allowed === null || allowed === undefined) {
+      return [async (_req, reply) => {
+        return reply.status(403).send({
+          success: false,
+          error: `${operation} operation is not permitted on ${label}`,
+        });
+      }];
+    }
+    if (Array.isArray(allowed) && allowed.length > 0) {
+      return [authorize(...allowed)];
+    }
+    return [];
+  }
 
   return async function (fastify) {
     // ── LIST (paginated) ───────────────────────────────────
-    fastify.get('/', async (request) => {
+    fastify.get('/', {
+      preHandler: getPreHandlers('list'),
+    }, async (request) => {
       const page = Math.max(1, parseInt(request.query.page) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(request.query.limit) || 20));
       const offset = (page - 1) * limit;
@@ -42,7 +75,9 @@ function createCrudRoutes(opts) {
     });
 
     // ── GET BY ID ──────────────────────────────────────────
-    fastify.get('/:id', async (request, reply) => {
+    fastify.get('/:id', {
+      preHandler: getPreHandlers('get'),
+    }, async (request, reply) => {
       const sql = getQuery
         ? `${getQuery} WHERE t.${idColumn} = ?`
         : `SELECT * FROM ${table} WHERE ${idColumn} = ?`;
@@ -54,7 +89,9 @@ function createCrudRoutes(opts) {
     });
 
     // ── CREATE ─────────────────────────────────────────────
-    fastify.post('/', async (request, reply) => {
+    fastify.post('/', {
+      preHandler: getPreHandlers('create'),
+    }, async (request, reply) => {
       const body = request.body;
       const columns = Object.keys(body);
       const values = Object.values(body);
@@ -79,7 +116,9 @@ function createCrudRoutes(opts) {
     });
 
     // ── UPDATE ─────────────────────────────────────────────
-    fastify.put('/:id', async (request, reply) => {
+    fastify.put('/:id', {
+      preHandler: getPreHandlers('update'),
+    }, async (request, reply) => {
       const body = request.body;
       const columns = Object.keys(body);
       if (!columns.length) {
@@ -101,7 +140,9 @@ function createCrudRoutes(opts) {
     });
 
     // ── DELETE ─────────────────────────────────────────────
-    fastify.delete('/:id', async (request, reply) => {
+    fastify.delete('/:id', {
+      preHandler: getPreHandlers('delete'),
+    }, async (request, reply) => {
       const [result] = await query(`DELETE FROM ${table} WHERE ${idColumn} = ?`, [request.params.id]);
       if (result.affectedRows === 0) {
         return reply.status(404).send({ success: false, error: `${label} not found` });

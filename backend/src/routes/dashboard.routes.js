@@ -1,11 +1,14 @@
 const { query } = require('../lib/db');
+const { authorize } = require('../plugins/auth');
 
 module.exports = async function dashboardRoutes(fastify) {
   /**
    * GET /api/dashboard/stats
-   * Aggregate stats for the admin dashboard.
+   * Aggregate stats for the admin/warden dashboard.
    */
-  fastify.get('/stats', async () => {
+  fastify.get('/stats', {
+    preHandler: [authorize('admin', 'warden')],
+  }, async () => {
     const [[students]] = await query('SELECT COUNT(*) AS count FROM student WHERE status = ?', ['Active']);
     const [[hostels]] = await query('SELECT COUNT(*) AS count FROM hostel');
     const [[rooms]] = await query('SELECT COUNT(*) AS count FROM room');
@@ -44,36 +47,44 @@ module.exports = async function dashboardRoutes(fastify) {
 
   /**
    * GET /api/dashboard/hostel-stats
-   * Per-hostel breakdown from the v_hostel_stats view.
+   * Per-hostel breakdown — warden/admin only.
    */
-  fastify.get('/hostel-stats', async () => {
+  fastify.get('/hostel-stats', {
+    preHandler: [authorize('admin', 'warden')],
+  }, async () => {
     const [rows] = await query('SELECT * FROM v_hostel_stats');
     return { success: true, data: rows };
   });
 
   /**
    * GET /api/dashboard/fee-summary
-   * Per-student fee summary from the v_fee_summary view.
+   * Per-student fee summary — warden/admin only.
    */
-  fastify.get('/fee-summary', async () => {
+  fastify.get('/fee-summary', {
+    preHandler: [authorize('admin', 'warden')],
+  }, async () => {
     const [rows] = await query('SELECT * FROM v_fee_summary');
     return { success: true, data: rows };
   });
 
   /**
    * GET /api/dashboard/complaint-board
-   * Complaint dashboard from the v_complaint_dashboard view.
+   * Complaint dashboard — warden/admin/technician.
    */
-  fastify.get('/complaint-board', async () => {
+  fastify.get('/complaint-board', {
+    preHandler: [authorize('admin', 'warden', 'technician')],
+  }, async () => {
     const [rows] = await query('SELECT * FROM v_complaint_dashboard ORDER BY created_at DESC');
     return { success: true, data: rows };
   });
 
   /**
    * GET /api/dashboard/room-occupancy
-   * Room occupancy from the v_room_occupancy view.
+   * Room occupancy — warden/admin only.
    */
-  fastify.get('/room-occupancy', async () => {
+  fastify.get('/room-occupancy', {
+    preHandler: [authorize('admin', 'warden')],
+  }, async () => {
     const [rows] = await query('SELECT * FROM v_room_occupancy');
     return { success: true, data: rows };
   });

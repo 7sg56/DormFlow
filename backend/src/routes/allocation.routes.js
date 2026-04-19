@@ -1,5 +1,8 @@
 const { query, getConnection } = require('../lib/db');
 const logger = require('../lib/logger');
+const { authorize } = require('../plugins/auth');
+
+const ALLOC_AUTH = [authorize('admin', 'warden')];
 
 module.exports = async function allocationRoutes(fastify) {
   // Stricter rate limit for booking endpoints
@@ -13,7 +16,7 @@ module.exports = async function allocationRoutes(fastify) {
   });
 
   // ── LIST ─────────────────────────────────────────────────
-  fastify.get('/', async (request) => {
+  fastify.get('/', { preHandler: ALLOC_AUTH }, async (request) => {
     const page = Math.max(1, parseInt(request.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(request.query.limit) || 20));
     const offset = (page - 1) * limit;
@@ -41,7 +44,7 @@ module.exports = async function allocationRoutes(fastify) {
   });
 
   // ── GET BY ID ────────────────────────────────────────────
-  fastify.get('/:id', async (request, reply) => {
+  fastify.get('/:id', { preHandler: ALLOC_AUTH }, async (request, reply) => {
     const [rows] = await query(`
       SELECT a.*,
              CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.reg_no,
@@ -61,7 +64,7 @@ module.exports = async function allocationRoutes(fastify) {
   });
 
   // ── CREATE (with MySQL named lock for concurrency) ───────
-  fastify.post('/', async (request, reply) => {
+  fastify.post('/', { preHandler: ALLOC_AUTH }, async (request, reply) => {
     const { student_id, bed_id, start_date, allocated_by, reason, status } = request.body;
 
     if (!student_id || !bed_id || !start_date) {
@@ -160,7 +163,7 @@ module.exports = async function allocationRoutes(fastify) {
   });
 
   // ── UPDATE ───────────────────────────────────────────────
-  fastify.put('/:id', async (request, reply) => {
+  fastify.put('/:id', { preHandler: ALLOC_AUTH }, async (request, reply) => {
     const { status, end_date, ...rest } = request.body;
 
     // If vacating, free the bed
@@ -209,7 +212,7 @@ module.exports = async function allocationRoutes(fastify) {
   });
 
   // ── DELETE ───────────────────────────────────────────────
-  fastify.delete('/:id', async (request, reply) => {
+  fastify.delete('/:id', { preHandler: ALLOC_AUTH }, async (request, reply) => {
     const [allocs] = await query(
       'SELECT bed_id, status FROM allocation WHERE allocation_id = ?', [request.params.id]
     );
