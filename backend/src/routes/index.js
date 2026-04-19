@@ -9,6 +9,9 @@ module.exports = async function routes(fastify) {
   // ── Auth (no auth required on /me itself — handled inside) ──
   await fastify.register(require('./auth.routes'), { prefix: '/auth' });
 
+  // ── Onboarding (link Clerk user to DB record) ───────────────
+  await fastify.register(require('./onboarding.routes'), { prefix: '/onboarding' });
+
   // ── Dashboard ────────────────────────────────────────────────
   await fastify.register(require('./dashboard.routes'), { prefix: '/dashboard' });
 
