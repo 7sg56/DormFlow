@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+
 import { Building2, Users, Wrench, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
+
+/**
+ * Cookie name matching the middleware check.
+ * Set here after successful onboarding link so the middleware
+ * immediately recognises the user as onboarded.
+ */
+const ONBOARDING_COOKIE = "dormflow_onboarded";
 
 type Role = "student" | "warden" | "technician";
 
@@ -55,15 +62,56 @@ const ROLE_OPTIONS: RoleOption[] = [
     },
 ];
 
+/** Set a simple cookie readable by the Next.js middleware. */
+function setOnboardingCookie() {
+    document.cookie = `${ONBOARDING_COOKIE}=true; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+}
+
 export default function OnboardingPage() {
     const { user } = useUser();
     const { session } = useClerk();
-    const router = useRouter();
 
     const [selectedRole, setSelectedRole] = useState<RoleOption | null>(null);
     const [identifier, setIdentifier] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [checking, setChecking] = useState(true);
+
+    // On mount, check if the user is already linked in the DB.
+    // If so, set the cookie and redirect immediately.
+    useEffect(() => {
+        async function checkStatus() {
+            try {
+                const token = await session?.getToken();
+                if (!token) {
+                    setChecking(false);
+                    return;
+                }
+
+                const res = await fetch(`${API_BASE}/onboarding/status`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    credentials: "include",
+                });
+                const data = await res.json();
+
+                if (data.success && data.data?.onboarded) {
+                    // Already linked — set cookie and go to dashboard
+                    setOnboardingCookie();
+                    window.location.href = "/dashboard";
+                    return;
+                }
+            } catch {
+                // Ignore — user just stays on onboarding page
+            }
+            setChecking(false);
+        }
+
+        if (session) {
+            checkStatus();
+        } else {
+            setChecking(false);
+        }
+    }, [session]);
 
     async function handleLink() {
         if (!selectedRole || !identifier.trim()) return;
@@ -72,7 +120,6 @@ export default function OnboardingPage() {
         setError(null);
 
         try {
-            // Get the session token for auth
             const token = await session?.getToken();
 
             const res = await fetch(`${API_BASE}/onboarding/link`, {
@@ -95,18 +142,25 @@ export default function OnboardingPage() {
                 return;
             }
 
-            // Force a session refresh to pick up the new publicMetadata
-            await session?.reload();
-            await user?.reload();
+            // Set the cookie so the middleware immediately lets us through
+            setOnboardingCookie();
 
-            // Redirect to dashboard
-            router.push("/dashboard");
-            router.refresh();
+            // Hard redirect to dashboard
+            window.location.href = "/dashboard";
         } catch {
             setError("Network error. Please check your connection and try again.");
         } finally {
             setLoading(false);
         }
+    }
+
+    // Show a loading state while checking existing onboarding status
+    if (checking) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+        );
     }
 
     return (
