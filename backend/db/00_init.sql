@@ -59,6 +59,7 @@ CREATE TABLE hostel (
 -- ============================================================
 CREATE TABLE hostel_warden (
     warden_id           CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+    clerk_user_id       VARCHAR(64)     NULL,
     hostel_id           CHAR(36)        NOT NULL,
     warden_name         VARCHAR(100)    NOT NULL,
     warden_phone        VARCHAR(15),
@@ -67,7 +68,8 @@ CREATE TABLE hostel_warden (
     is_active           BOOLEAN         DEFAULT TRUE,
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_hw_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE CASCADE
+    CONSTRAINT fk_hw_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE CASCADE,
+    UNIQUE INDEX idx_warden_clerk_uid (clerk_user_id)
 );
 
 -- ============================================================
@@ -117,6 +119,7 @@ CREATE TABLE mess_timing (
 -- ============================================================
 CREATE TABLE student (
     student_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+    clerk_user_id       VARCHAR(64)     NULL,
     reg_no              VARCHAR(50)     NOT NULL UNIQUE,
     first_name          VARCHAR(100)    NOT NULL,
     last_name           VARCHAR(100)    NOT NULL,
@@ -144,7 +147,8 @@ CREATE TABLE student (
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_student_pincode FOREIGN KEY (pincode) REFERENCES pincode_locality(pincode) ON UPDATE CASCADE,
-    CONSTRAINT fk_student_mess    FOREIGN KEY (mess_id) REFERENCES mess(mess_id) ON DELETE SET NULL
+    CONSTRAINT fk_student_mess    FOREIGN KEY (mess_id) REFERENCES mess(mess_id) ON DELETE SET NULL,
+    UNIQUE INDEX idx_student_clerk_uid (clerk_user_id)
 );
 
 -- ============================================================
@@ -203,6 +207,7 @@ CREATE TABLE specialization (
 -- ============================================================
 CREATE TABLE technician (
     technician_id       CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
+    clerk_user_id       VARCHAR(64)     NULL,
     name                VARCHAR(100)    NOT NULL,
     phone               VARCHAR(15),
     email               VARCHAR(100),
@@ -215,7 +220,8 @@ CREATE TABLE technician (
     hostel_id           CHAR(36),
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_tech_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE SET NULL
+    CONSTRAINT fk_tech_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE SET NULL,
+    UNIQUE INDEX idx_tech_clerk_uid (clerk_user_id)
 );
 
 -- ============================================================
