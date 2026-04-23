@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fetchApi } from "@/lib/api";
-import { getUserRole } from "@/lib/auth-utils";
+import { useUser } from "@clerk/nextjs";
+import type { UserRole } from "@/lib/rbac-config";
 import { Phone, Plus } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -34,7 +35,8 @@ interface LaundryRequest {
 }
 
 export default function LaundryPage() {
-  const userRole = getUserRole();
+  const { user } = useUser();
+  const userRole = (user?.publicMetadata?.role as UserRole) || 'student';
   const [laundries, setLaundries] = useState<Laundry[]>([]);
   const [requests, setRequests] = useState<LaundryRequest[]>([]);
   const [loading, setLoading] = useState(true);

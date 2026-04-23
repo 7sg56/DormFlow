@@ -1,228 +1,230 @@
-const { Router } = require('express');
-const prisma = require('../lib/prisma');
+const { query, getConnection } = require('../lib/db');
 const logger = require('../lib/logger');
-const { validate } = require('../middleware/validate');
-const { cacheMiddleware, invalidateCache } = require('../middleware/cache');
-const { bookingLimiter } = require('../middleware/rateLimiter');
-const { idempotency } = require('../middleware/idempotency');
-const { acquireLock } = require('../lib/redis');
-const { AppError } = require('../middleware/errorHandler');
-const { paginationQuery, idParam } = require('../schemas/common.schema');
-const { createAllocationSchema, updateAllocationSchema } = require('../schemas/allocation.schema');
+const { authorize } = require('../plugins/auth');
 
-const router = Router();
+const ALLOC_AUTH = [authorize('admin', 'warden')];
 
-// GET / — List allocations
-router.get(
-  '/',
-  cacheMiddleware('allocations', 120),
-  validate({ query: paginationQuery }),
-  async (req, res, next) => {
-    try {
-      const { page, limit } = req.query;
-      const skip = (page - 1) * limit;
+module.exports = async function allocationRoutes(fastify) {
+  // Stricter rate limit for booking endpoints
+  await fastify.register(require('@fastify/rate-limit'), {
+    max: 5,
+    timeWindow: '10 seconds',
+    errorResponseBuilder: () => ({
+      success: false,
+      error: 'Booking rate limit exceeded, try again shortly',
+    }),
+  });
 
-      const [data, total] = await Promise.all([
-        prisma.allocation.findMany({
-          skip,
-          take: limit,
-          orderBy: { created_at: 'desc' },
-          include: {
-            student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-            bed: {
-              include: {
-                room: {
-                  include: {
-                    hostel: { select: { hostel_id: true, hostel_name: true } },
-                  },
-                },
-              },
-            },
-          },
-        }),
-        prisma.allocation.count(),
-      ]);
+  // ── LIST ─────────────────────────────────────────────────
+  fastify.get('/', { preHandler: ALLOC_AUTH }, async (request) => {
+    const page = Math.max(1, parseInt(request.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(request.query.limit) || 20));
+    const offset = (page - 1) * limit;
 
-      res.json({
-        success: true,
-        data,
-        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-      });
-    } catch (err) {
-      next(err);
+    const [rows] = await query(`
+      SELECT a.*,
+             CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.reg_no,
+             b.bed_number, r.room_number, r.floor, h.hostel_name
+      FROM allocation a
+      JOIN student s ON a.student_id = s.student_id
+      JOIN bed b ON a.bed_id = b.bed_id
+      JOIN room r ON b.room_id = r.room_id
+      JOIN hostel h ON r.hostel_id = h.hostel_id
+      ORDER BY a.created_at DESC
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
+
+    const [[{ total }]] = await query('SELECT COUNT(*) AS total FROM allocation');
+
+    return {
+      success: true,
+      data: rows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  });
+
+  // ── GET BY ID ────────────────────────────────────────────
+  fastify.get('/:id', { preHandler: ALLOC_AUTH }, async (request, reply) => {
+    const [rows] = await query(`
+      SELECT a.*,
+             CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.reg_no,
+             b.bed_number, r.room_number, r.floor, h.hostel_name
+      FROM allocation a
+      JOIN student s ON a.student_id = s.student_id
+      JOIN bed b ON a.bed_id = b.bed_id
+      JOIN room r ON b.room_id = r.room_id
+      JOIN hostel h ON r.hostel_id = h.hostel_id
+      WHERE a.allocation_id = ?
+    `, [request.params.id]);
+
+    if (!rows.length) {
+      return reply.status(404).send({ success: false, error: 'Allocation not found' });
     }
-  }
-);
+    return { success: true, data: rows[0] };
+  });
 
-// GET /:id — Single allocation
-router.get(
-  '/:id',
-  cacheMiddleware('allocations', 120),
-  validate({ params: idParam }),
-  async (req, res, next) => {
-    try {
-      const record = await prisma.allocation.findUnique({
-        where: { allocation_id: req.params.id },
-        include: {
-          student: true,
-          bed: { include: { room: { include: { hostel: true } } } },
-        },
-      });
-      if (!record) throw new AppError(404, 'Allocation not found');
-      res.json({ success: true, data: record });
-    } catch (err) {
-      next(err);
-    }
-  }
-);
+  // ── CREATE (with MySQL named lock for concurrency) ───────
+  fastify.post('/', { preHandler: ALLOC_AUTH }, async (request, reply) => {
+    const { student_id, bed_id, start_date, allocated_by, reason, status } = request.body;
 
-// POST / — Create allocation with distributed lock (prevents double-booking)
-router.post(
-  '/',
-  bookingLimiter,
-  idempotency,
-  validate({ body: createAllocationSchema }),
-  async (req, res, next) => {
-    const { bed_id, student_id } = req.body;
-
-    // Acquire distributed lock on the bed to prevent race conditions
-    const unlock = await acquireLock(`bed:${bed_id}`, 15000);
-    if (!unlock) {
-      return res.status(429).json({
+    if (!student_id || !bed_id || !start_date) {
+      return reply.status(400).send({
         success: false,
-        error: 'Bed is currently being processed by another request. Please retry.',
+        error: 'student_id, bed_id, and start_date are required',
       });
     }
 
+    const lockName = `bed_lock_${bed_id}`;
+    const conn = await getConnection();
+
     try {
-      // Check bed availability inside the lock
-      const bed = await prisma.bed.findUnique({ where: { bed_id } });
-      if (!bed) {
-        throw new AppError(404, 'Bed not found');
-      }
-      if (bed.occupied) {
-        throw new AppError(409, 'Bed is already occupied');
-      }
+      // Acquire named lock (10 second timeout)
+      const [[{ locked }]] = await conn.execute(
+        `SELECT GET_LOCK(?, 10) AS locked`, [lockName]
+      );
 
-      // Check student doesn't already have an active allocation
-      const existingAllocation = await prisma.allocation.findFirst({
-        where: { student_id, status: 'Active' },
-      });
-      if (existingAllocation) {
-        throw new AppError(409, 'Student already has an active allocation');
-      }
-
-      // Atomic transaction: create allocation + mark bed occupied
-      const result = await prisma.$transaction([
-        prisma.allocation.create({
-          data: req.body,
-          include: {
-            student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-            bed: { include: { room: { include: { hostel: true } } } },
-          },
-        }),
-        prisma.bed.update({
-          where: { bed_id },
-          data: { occupied: true },
-        }),
-      ]);
-
-      await invalidateCache('allocations');
-      await invalidateCache('beds');
-      await invalidateCache('rooms');
-
-      logger.info('Allocation created', {
-        allocation_id: result[0].allocation_id,
-        student_id,
-        bed_id,
-      });
-
-      res.status(201).json({ success: true, data: result[0] });
-    } catch (err) {
-      next(err);
-    } finally {
-      await unlock();
-    }
-  }
-);
-
-// PUT /:id — Update allocation (e.g., vacate)
-router.put(
-  '/:id',
-  validate({ params: idParam, body: updateAllocationSchema }),
-  async (req, res, next) => {
-    try {
-      const existing = await prisma.allocation.findUnique({
-        where: { allocation_id: req.params.id },
-      });
-      if (!existing) throw new AppError(404, 'Allocation not found');
-
-      // If status changed to non-Active, free up the bed
-      if (req.body.status && req.body.status !== 'Active' && existing.status === 'Active') {
-        await prisma.$transaction([
-          prisma.allocation.update({
-            where: { allocation_id: req.params.id },
-            data: req.body,
-          }),
-          prisma.bed.update({
-            where: { bed_id: existing.bed_id },
-            data: { occupied: false },
-          }),
-        ]);
-      } else {
-        await prisma.allocation.update({
-          where: { allocation_id: req.params.id },
-          data: req.body,
+      if (!locked) {
+        conn.release();
+        return reply.status(429).send({
+          success: false,
+          error: 'Bed is being processed by another request. Try again shortly.',
         });
       }
 
-      await invalidateCache('allocations');
-      await invalidateCache('beds');
+      await conn.beginTransaction();
 
-      const updated = await prisma.allocation.findUnique({
-        where: { allocation_id: req.params.id },
-        include: {
-          student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-          bed: { include: { room: { include: { hostel: true } } } },
-        },
-      });
+      // Check bed availability
+      const [[bed]] = await conn.execute(
+        'SELECT occupied FROM bed WHERE bed_id = ?', [bed_id]
+      );
+      if (!bed) {
+        await conn.rollback();
+        await conn.execute('SELECT RELEASE_LOCK(?)', [lockName]);
+        conn.release();
+        return reply.status(404).send({ success: false, error: 'Bed not found' });
+      }
+      if (bed.occupied) {
+        await conn.rollback();
+        await conn.execute('SELECT RELEASE_LOCK(?)', [lockName]);
+        conn.release();
+        return reply.status(409).send({ success: false, error: 'Bed is already occupied' });
+      }
 
-      res.json({ success: true, data: updated });
+      // Check student doesn't already have an active allocation
+      const [[existing]] = await conn.execute(
+        `SELECT allocation_id FROM allocation
+         WHERE student_id = ? AND status = 'Active'
+         AND (end_date IS NULL OR end_date >= CURDATE())`,
+        [student_id]
+      );
+      if (existing) {
+        await conn.rollback();
+        await conn.execute('SELECT RELEASE_LOCK(?)', [lockName]);
+        conn.release();
+        return reply.status(409).send({ success: false, error: 'Student already has an active allocation' });
+      }
+
+      // Create allocation
+      const allocationId = require('crypto').randomUUID();
+      await conn.execute(
+        `INSERT INTO allocation (allocation_id, student_id, bed_id, start_date, allocated_by, reason, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [allocationId, student_id, bed_id, start_date, allocated_by || null, reason || null, status || 'Active']
+      );
+
+      // Mark bed as occupied
+      await conn.execute('UPDATE bed SET occupied = TRUE WHERE bed_id = ?', [bed_id]);
+
+      await conn.commit();
+      await conn.execute('SELECT RELEASE_LOCK(?)', [lockName]);
+      conn.release();
+
+      // Fetch the created allocation with joins
+      const [rows] = await query(`
+        SELECT a.*,
+               CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+               b.bed_number, r.room_number, h.hostel_name
+        FROM allocation a
+        JOIN student s ON a.student_id = s.student_id
+        JOIN bed b ON a.bed_id = b.bed_id
+        JOIN room r ON b.room_id = r.room_id
+        JOIN hostel h ON r.hostel_id = h.hostel_id
+        WHERE a.allocation_id = ?
+      `, [allocationId]);
+
+      logger.info('Allocation created', { allocationId, student_id, bed_id });
+      return reply.status(201).send({ success: true, data: rows[0] });
     } catch (err) {
-      next(err);
+      try { await conn.rollback(); } catch (_) {}
+      try { await conn.execute('SELECT RELEASE_LOCK(?)', [lockName]); } catch (_) {}
+      conn.release();
+      throw err;
     }
-  }
-);
+  });
 
-// DELETE /:id — Delete allocation and free bed
-router.delete(
-  '/:id',
-  validate({ params: idParam }),
-  async (req, res, next) => {
-    try {
-      const existing = await prisma.allocation.findUnique({
-        where: { allocation_id: req.params.id },
-      });
-      if (!existing) throw new AppError(404, 'Allocation not found');
+  // ── UPDATE ───────────────────────────────────────────────
+  fastify.put('/:id', { preHandler: ALLOC_AUTH }, async (request, reply) => {
+    const { status, end_date, ...rest } = request.body;
 
-      await prisma.$transaction([
-        prisma.allocation.delete({
-          where: { allocation_id: req.params.id },
-        }),
-        prisma.bed.update({
-          where: { bed_id: existing.bed_id },
-          data: { occupied: false },
-        }),
-      ]);
-
-      await invalidateCache('allocations');
-      await invalidateCache('beds');
-
-      res.json({ success: true, message: 'Allocation deleted and bed freed' });
-    } catch (err) {
-      next(err);
+    // If vacating, free the bed
+    if (status === 'Vacated' || status === 'Cancelled') {
+      const [allocs] = await query(
+        'SELECT bed_id FROM allocation WHERE allocation_id = ?', [request.params.id]
+      );
+      if (!allocs.length) {
+        return reply.status(404).send({ success: false, error: 'Allocation not found' });
+      }
+      await query('UPDATE bed SET occupied = FALSE WHERE bed_id = ?', [allocs[0].bed_id]);
     }
-  }
-);
 
-module.exports = router;
+    const fields = { ...rest };
+    if (status) fields.status = status;
+    if (end_date) fields.end_date = end_date;
+
+    const columns = Object.keys(fields);
+    if (!columns.length) {
+      return reply.status(400).send({ success: false, error: 'No fields to update' });
+    }
+
+    const setClause = columns.map((c) => `${c} = ?`).join(', ');
+    const values = [...Object.values(fields), request.params.id];
+    const [result] = await query(
+      `UPDATE allocation SET ${setClause} WHERE allocation_id = ?`, values
+    );
+
+    if (result.affectedRows === 0) {
+      return reply.status(404).send({ success: false, error: 'Allocation not found' });
+    }
+
+    const [rows] = await query(`
+      SELECT a.*,
+             CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+             b.bed_number, r.room_number, h.hostel_name
+      FROM allocation a
+      JOIN student s ON a.student_id = s.student_id
+      JOIN bed b ON a.bed_id = b.bed_id
+      JOIN room r ON b.room_id = r.room_id
+      JOIN hostel h ON r.hostel_id = h.hostel_id
+      WHERE a.allocation_id = ?
+    `, [request.params.id]);
+
+    return { success: true, data: rows[0] };
+  });
+
+  // ── DELETE ───────────────────────────────────────────────
+  fastify.delete('/:id', { preHandler: ALLOC_AUTH }, async (request, reply) => {
+    const [allocs] = await query(
+      'SELECT bed_id, status FROM allocation WHERE allocation_id = ?', [request.params.id]
+    );
+    if (!allocs.length) {
+      return reply.status(404).send({ success: false, error: 'Allocation not found' });
+    }
+
+    if (allocs[0].status === 'Active') {
+      await query('UPDATE bed SET occupied = FALSE WHERE bed_id = ?', [allocs[0].bed_id]);
+    }
+
+    await query('DELETE FROM allocation WHERE allocation_id = ?', [request.params.id]);
+    return { success: true, message: 'Allocation deleted' };
+  });
+};

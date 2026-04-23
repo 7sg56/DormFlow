@@ -1,94 +1,111 @@
 const path = require('path');
 const fs = require('fs');
 
-// Load .env from project root for local dev; Docker injects env vars directly
+// Load .env from project root
 const envPath = path.resolve(__dirname, '../../.env');
 if (fs.existsSync(envPath)) {
   require('dotenv').config({ path: envPath });
 }
 
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
+const fastify = require('fastify');
 const logger = require('./lib/logger');
-const { initSentry, Sentry } = require('./lib/sentry');
-const prisma = require('./lib/prisma');
-const { redis } = require('./lib/redis');
-const { errorHandler } = require('./middleware/errorHandler');
-const { globalLimiter } = require('./middleware/rateLimiter');
-const routes = require('./routes');
+const { testConnection } = require('./lib/db');
 
-const app = express();
-const port = process.env.PORT || 5001;
-
-// ---- Sentry (must be first) ----
-initSentry(app);
-
-// ---- Global middleware ----
-app.use(helmet());
-
-// CORS configuration - allow credentials for httpOnly cookies
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true,
-}));
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// ---- Rate limiter ----
-app.use('/api', globalLimiter);
-
-// ---- Health checks ----
-app.get('/', (_req, res) => {
-  res.json({ status: 'ok', service: 'dormflow-api', version: '1.0.0' });
+const app = fastify({
+  logger: false, // We use our own logger
 });
 
-app.get('/api/health', async (_req, res) => {
+// ---- Register plugins ----
+async function registerPlugins() {
+  // Helmet (security headers)
+  await app.register(require('@fastify/helmet'));
+
+  // CORS
+  await app.register(require('@fastify/cors'), {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  });
+
+  // Global rate limit
+  await app.register(require('@fastify/rate-limit'), {
+    max: 200,
+    timeWindow: '1 minute',
+    errorResponseBuilder: () => ({
+      success: false,
+      error: 'Too many requests, please try again later',
+    }),
+  });
+
+  // Auth plugin (Clerk)
+  await app.register(require('./plugins/auth'));
+
+  // Routes
+  await app.register(require('./routes'), { prefix: '/api' });
+}
+
+// ---- Health checks ----
+app.get('/', async () => {
+  return { status: 'ok', service: 'dormflow-api', version: '2.0.0' };
+});
+
+app.get('/api/health', async (_request, reply) => {
   const health = { status: 'ok', timestamp: new Date().toISOString() };
 
-  // Check DB
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await testConnection();
     health.db = 'connected';
-  } catch (err) {
+  } catch (_err) {
     health.db = 'disconnected';
     health.status = 'degraded';
   }
 
-  // Check Redis
-  try {
-    await redis.ping();
-    health.redis = 'connected';
-  } catch (err) {
-    health.redis = 'disconnected';
-    health.status = 'degraded';
-  }
-
   const statusCode = health.status === 'ok' ? 200 : 503;
-  res.status(statusCode).json(health);
+  return reply.status(statusCode).send(health);
 });
 
-// ---- API routes ----
-app.use('/api', routes);
+// ---- Global error handler ----
+app.setErrorHandler((error, _request, reply) => {
+  logger.error('Unhandled error', {
+    error: error.message,
+    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+  });
 
-// ---- Error handler (must be last) ----
-if (Sentry && process.env.SENTRY_DSN) {
-  app.use(Sentry.expressErrorHandler());
-}
-app.use(errorHandler);
+  // MySQL duplicate entry
+  if (error.code === 'ER_DUP_ENTRY') {
+    return reply.status(409).send({ success: false, error: 'Duplicate record' });
+  }
+  // MySQL FK not found
+  if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+    return reply.status(400).send({ success: false, error: 'Referenced record not found' });
+  }
+  // MySQL cannot delete parent
+  if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+    return reply.status(409).send({
+      success: false,
+      error: 'Cannot delete — record is referenced by other records',
+    });
+  }
+
+  const statusCode = error.statusCode || 500;
+  return reply.status(statusCode).send({
+    success: false,
+    error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+  });
+});
 
 // ---- Startup ----
 async function start() {
+  const port = parseInt(process.env.PORT || '5001', 10);
+
   // Wait for DB
   let dbReady = false;
   for (let i = 0; i < 10; i++) {
     try {
-      await prisma.$connect();
+      await testConnection();
       logger.info('Database connected');
       dbReady = true;
       break;
-    } catch (err) {
+    } catch (_err) {
       logger.warn(`DB not ready, retrying in 5s... (${i + 1}/10)`);
       await new Promise((r) => setTimeout(r, 5000));
     }
@@ -99,53 +116,28 @@ async function start() {
     process.exit(1);
   }
 
-  // Wait for Redis
-  try {
-    await redis.ping();
-    logger.info('Redis connected');
-  } catch (err) {
-    logger.warn('Redis not available — running without cache', { error: err.message });
-  }
+  await registerPlugins();
 
-  app.listen(port, () => {
+  try {
+    await app.listen({ port, host: '0.0.0.0' });
     logger.info(`DormFlow API listening on port ${port}`);
     logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
+  } catch (err) {
+    logger.error('Failed to start server', { error: err.message });
+    process.exit(1);
+  }
 }
 
 // ---- Graceful shutdown ----
-async function shutdown(signal) {
-  logger.info(`${signal} received — shutting down gracefully`);
-
-  try {
-    await prisma.$disconnect();
-    logger.info('Prisma disconnected');
-  } catch (err) {
-    logger.error('Prisma disconnect error', { error: err.message });
-  }
-
-  try {
-    redis.disconnect();
-    logger.info('Redis disconnected');
-  } catch (err) {
-    logger.error('Redis disconnect error', { error: err.message });
-  }
-
-  if (Sentry && Sentry.close) {
-    await Sentry.close(2000);
-  }
-
-  process.exit(0);
+function shutdown(signal) {
+  logger.info(`${signal} received — shutting down`);
+  app.close().then(() => process.exit(0));
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled Rejection', { reason: String(reason) });
-});
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
-  process.exit(1);
 });
 
 start();

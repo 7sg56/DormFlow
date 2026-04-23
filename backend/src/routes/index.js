@@ -1,697 +1,141 @@
-const { Router } = require('express');
-const { createCrudRouter } = require('./crud.factory');
-const prisma = require('../lib/prisma');
-const { authenticate, authorize } = require('../middleware/auth');
+const { createCrudRoutes } = require('./crud.factory');
+const { requireAuth } = require('../plugins/auth');
+const { POLICY } = require('../lib/rbac');
 
-// Import schemas
-const { createHostelSchema, updateHostelSchema } = require('../schemas/hostel.schema');
-const { createStudentSchema, updateStudentSchema } = require('../schemas/student.schema');
-const { createRoomSchema, updateRoomSchema, createBedSchema, updateBedSchema } = require('../schemas/room.schema');
-const {
-  createFeeSchema, updateFeeSchema,
-  createComplaintSchema, updateComplaintSchema,
-  createMessSchema, updateMessSchema,
-  createMenuSchema, updateMenuSchema,
-  createFacilitySchema, updateFacilitySchema,
-  createFacilityBookingSchema, updateFacilityBookingSchema,
-  createAccessLogSchema, updateAccessLogSchema,
-  createVisitorLogSchema, updateVisitorLogSchema,
-  createLaundrySchema, updateLaundrySchema,
-  createLaundryRequestSchema, updateLaundryRequestSchema,
-  createStoreSchema, updateStoreSchema,
-  createStorePurchaseSchema, updateStorePurchaseSchema,
-  createPharmacySchema, updatePharmacySchema,
-  createPharmacyVisitSchema, updatePharmacyVisitSchema,
-  createGymSchema, updateGymSchema,
-  createGymMembershipSchema, updateGymMembershipSchema,
-  createEmergencyRequestSchema, updateEmergencyRequestSchema,
-  createAmbulanceSchema, updateAmbulanceSchema,
-  createNoticeSchema, updateNoticeSchema,
-  createMaintenanceSchema, updateMaintenanceSchema,
-  createMessSubscriptionSchema, updateMessSubscriptionSchema,
-  createGuardianSchema, updateGuardianSchema,
-  createTechnicianSchema, updateTechnicianSchema,
-  createRestaurantSchema, updateRestaurantSchema,
-} = require('../schemas/entity.schema');
+module.exports = async function routes(fastify) {
+  // All routes under /api require auth
+  fastify.addHook('preHandler', requireAuth);
 
-// Import custom routes
-const allocationRoutes = require('./allocation.routes');
-const authRoutes = require('./auth.routes');
-const dashboardRoutes = require('./dashboard.routes');
+  // ── Auth (no auth required on /me itself — handled inside) ──
+  await fastify.register(require('./auth.routes'), { prefix: '/auth' });
 
-const router = Router();
+  // ── Onboarding (link Clerk user to DB record) ───────────────
+  await fastify.register(require('./onboarding.routes'), { prefix: '/onboarding' });
 
-// ---- Auth (custom) ----
-router.use('/auth', authRoutes);
+  // ── Dashboard ────────────────────────────────────────────────
+  await fastify.register(require('./dashboard.routes'), { prefix: '/dashboard' });
 
-// ---- Dashboard (custom) ----
-router.use('/dashboard', dashboardRoutes);
+  // ── Allocations (custom routes with locking) ─────────────────
+  await fastify.register(require('./allocation.routes'), { prefix: '/allocations' });
 
-// ---- Allocation (custom — Redis locking) ----
-router.use('/allocations', allocationRoutes);
+  // ── Generic CRUD Entities ────────────────────────────────────
 
-// ==========================================
-// Role Permission Matrix
-// ==========================================
-// admin: Full access to all operations
-// warden: Access to their assigned hostel only
-// student: View-only for their own data, create requests
-// technician: View all, update their assigned tasks
+  await fastify.register(createCrudRoutes({
+    table: 'hostel', idColumn: 'hostel_id', label: 'Hostel',
+    rbac: POLICY.hostel,
+    listQuery: `
+      SELECT h.*, pl.city, pl.state,
+             hw.warden_name, hw.warden_phone, hw.warden_email
+      FROM hostel h
+      LEFT JOIN pincode_locality pl ON h.pincode = pl.pincode
+      LEFT JOIN hostel_warden hw ON h.hostel_id = hw.hostel_id AND hw.is_active = TRUE
+    `,
+  }), { prefix: '/hostels' });
 
-/**
- * Helper to filter data by user context
- */
-const filterByUser = {
-  // Warden filter: only their assigned hostel
-  hostel: async (req) => {
-    if (req.user.role === 'warden') {
-      const user = await prisma.auth_user.findUnique({
-        where: { user_id: req.user.userId },
-        select: { assigned_hostel_id: true },
-      });
-      if (user?.assigned_hostel_id) {
-        return { hostel_id: user.assigned_hostel_id };
-      }
-    }
-    return {};
-  },
+  await fastify.register(createCrudRoutes({
+    table: 'student', idColumn: 'student_id', label: 'Student',
+    rbac: POLICY.student,
+    listQuery: `
+      SELECT s.*,
+             CONCAT(s.first_name, ' ', s.last_name) AS full_name,
+             pl.city, pl.state, ms.mess_name
+      FROM student s
+      LEFT JOIN pincode_locality pl ON s.pincode = pl.pincode
+      LEFT JOIN mess ms ON s.mess_id = ms.mess_id
+    `,
+  }), { prefix: '/students' });
 
-  // Student filter: only their own data
-  student: async (req) => {
-    if (req.user.role === 'student') {
-      const user = await prisma.auth_user.findUnique({
-        where: { user_id: req.user.userId },
-        select: { student_id: true },
-      });
-      if (user?.student_id) {
-        return { student_id: user.student_id };
-      }
-    }
-    return {};
-  },
+  await fastify.register(createCrudRoutes({
+    table: 'room', idColumn: 'room_id', label: 'Room',
+    rbac: POLICY.room,
+    listQuery: `
+      SELECT r.*, h.hostel_name
+      FROM room r JOIN hostel h ON r.hostel_id = h.hostel_id
+    `,
+  }), { prefix: '/rooms' });
 
-  // Warden filter for rooms: same logic as hostel filter (filter by hostel_id)
-  room: async (req) => filterByUser.hostel(req),
+  await fastify.register(createCrudRoutes({
+    table: 'bed', idColumn: 'bed_id', label: 'Bed',
+    rbac: POLICY.bed,
+    listQuery: `
+      SELECT b.*, r.room_number, r.floor, h.hostel_name
+      FROM bed b
+      JOIN room r ON b.room_id = r.room_id
+      JOIN hostel h ON r.hostel_id = h.hostel_id
+    `,
+  }), { prefix: '/beds' });
 
-  // Warden filter for beds: only their hostel's beds
-  bed: async (req) => {
-    if (req.user.role === 'warden') {
-      const user = await prisma.auth_user.findUnique({
-        where: { user_id: req.user.userId },
-        select: { assigned_hostel_id: true },
-      });
-      if (user?.assigned_hostel_id) {
-        return { room: { hostel_id: user.assigned_hostel_id } };
-      }
-    }
-    return {};
-  },
+  await fastify.register(createCrudRoutes({
+    table: 'feepayment', idColumn: 'payment_id', label: 'Fee Payment',
+    rbac: POLICY.feepayment,
+    listQuery: `
+      SELECT f.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.reg_no
+      FROM feepayment f JOIN student s ON f.student_id = s.student_id
+    `,
+  }), { prefix: '/fees' });
 
-  // Warden filter for students: only their hostel's students
-  students: async (req) => {
-    if (req.user.role === 'warden') {
-      const user = await prisma.auth_user.findUnique({
-        where: { user_id: req.user.userId },
-        select: { assigned_hostel_id: true },
-      });
-      if (user?.assigned_hostel_id) {
-        return { allocations: { some: { bed: { room: { hostel_id: user.assigned_hostel_id } } } } };
-      }
-    }
-    return {};
-  },
+  await fastify.register(createCrudRoutes({
+    table: 'complaint', idColumn: 'complaint_id', label: 'Complaint',
+    rbac: POLICY.complaint,
+    listQuery: `
+      SELECT c.*,
+             CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.reg_no,
+             r.room_number, h.hostel_name, t.name AS technician_name
+      FROM complaint c
+      JOIN student s ON c.student_id = s.student_id
+      LEFT JOIN room r ON c.room_id = r.room_id
+      LEFT JOIN hostel h ON r.hostel_id = h.hostel_id
+      LEFT JOIN technician t ON c.technician_id = t.technician_id
+    `,
+  }), { prefix: '/complaints' });
 
-  // Warden filter for complaints: only their hostel's complaints
-  complaint: async (req) => {
-    if (req.user.role === 'warden') {
-      const user = await prisma.auth_user.findUnique({
-        where: { user_id: req.user.userId },
-        select: { assigned_hostel_id: true },
-      });
-      if (user?.assigned_hostel_id) {
-        return { room: { hostel_id: user.assigned_hostel_id } };
-      }
-    }
-    if (req.user.role === 'student') {
-      const user = await prisma.auth_user.findUnique({
-        where: { user_id: req.user.userId },
-        select: { student_id: true },
-      });
-      if (user?.student_id) {
-        return { student_id: user.student_id };
-      }
-    }
-    return {};
-  },
+  await fastify.register(createCrudRoutes({
+    table: 'technician', idColumn: 'technician_id', label: 'Technician',
+    rbac: POLICY.technician,
+    listQuery: `
+      SELECT t.*, h.hostel_name
+      FROM technician t LEFT JOIN hostel h ON t.hostel_id = h.hostel_id
+    `,
+  }), { prefix: '/technicians' });
 
-  // Warden filter for maintenance: only their hostel's maintenance
-  maintenance: async (req) => {
-    if (req.user.role === 'warden') {
-      const user = await prisma.auth_user.findUnique({
-        where: { user_id: req.user.userId },
-        select: { assigned_hostel_id: true },
-      });
-      if (user?.assigned_hostel_id) {
-        return { hostel_id: user.assigned_hostel_id };
-      }
-    }
-    return {};
-  },
+  await fastify.register(createCrudRoutes({
+    table: 'mess', idColumn: 'mess_id', label: 'Mess',
+    rbac: POLICY.mess,
+    listQuery: `
+      SELECT ms.*, h.hostel_name
+      FROM mess ms JOIN hostel h ON ms.hostel_id = h.hostel_id
+    `,
+  }), { prefix: '/messes' });
 
-  // Technician filter: assigned tasks
-  technician: async (req) => {
-    if (req.user.role === 'technician') {
-      const user = await prisma.auth_user.findUnique({
-        where: { user_id: req.user.userId },
-        select: { technician_id: true },
-      });
-      if (user?.technician_id) {
-        return { technician_id: user.technician_id };
-      }
-    }
-    return {};
-  },
+  await fastify.register(createCrudRoutes({
+    table: 'laundry', idColumn: 'laundry_id', label: 'Laundry',
+    rbac: POLICY.laundry,
+    listQuery: `
+      SELECT l.*, h.hostel_name
+      FROM laundry l JOIN hostel h ON l.hostel_id = h.hostel_id
+    `,
+  }), { prefix: '/laundries' });
+
+  await fastify.register(createCrudRoutes({
+    table: 'visitor_log', idColumn: 'visitor_id', label: 'Visitor Log',
+    rbac: POLICY.visitor_log,
+    listQuery: `
+      SELECT vl.*,
+             CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.reg_no,
+             r.room_number, h.hostel_name
+      FROM visitor_log vl
+      JOIN student s ON vl.student_id = s.student_id
+      LEFT JOIN room r ON vl.room_id = r.room_id
+      LEFT JOIN hostel h ON r.hostel_id = h.hostel_id
+    `,
+  }), { prefix: '/visitor-logs' });
+
+  await fastify.register(createCrudRoutes({
+    table: 'hostel_warden', idColumn: 'warden_id', label: 'Warden',
+    rbac: POLICY.hostel_warden,
+    listQuery: `
+      SELECT hw.*, h.hostel_name
+      FROM hostel_warden hw JOIN hostel h ON hw.hostel_id = h.hostel_id
+    `,
+  }), { prefix: '/wardens' });
 };
-
-// ---- Standard CRUD entities (factory-generated with RBAC) ----
-
-// Hostels: Admin full, Warden read-only their hostel, Student read-only, Technician read-only
-router.use('/hostels', createCrudRouter({
-  model: 'hostel',
-  idField: 'hostel_id',
-  cachePrefix: 'hostels',
-  createSchema: createHostelSchema,
-  updateSchema: updateHostelSchema,
-  includes: { rooms: { select: { room_id: true, room_number: true, floor: true } } },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin'],
-    put: ['admin', 'warden'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.hostel,
-}));
-
-// Students: Admin full, Warden read their hostel's, Student own data, Technician read-all
-router.use('/students', createCrudRouter({
-  model: 'student',
-  idField: 'student_id',
-  cachePrefix: 'students',
-  createSchema: createStudentSchema,
-  updateSchema: updateStudentSchema,
-  includes: {
-    guardians: true,
-    allocations: {
-      where: { status: 'Active' },
-      include: { bed: { include: { room: { include: { hostel: { select: { hostel_name: true } } } } } } },
-    },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden', 'student'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Rooms: Admin full, Warden their hostel only, Student read-only, Technician read-all
-router.use('/rooms', createCrudRouter({
-  model: 'room',
-  idField: 'room_id',
-  cachePrefix: 'rooms',
-  createSchema: createRoomSchema,
-  updateSchema: updateRoomSchema,
-  includes: {
-    hostel: { select: { hostel_id: true, hostel_name: true } },
-    beds: true,
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.room,
-}));
-
-// Beds: Admin full, Warden their hostel only, Student read-only, Technician read-all
-router.use('/beds', createCrudRouter({
-  model: 'bed',
-  idField: 'bed_id',
-  cachePrefix: 'beds',
-  createSchema: createBedSchema,
-  updateSchema: updateBedSchema,
-  includes: {
-    room: { include: { hostel: { select: { hostel_id: true, hostel_name: true } } } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.bed,
-}));
-
-// Fees: Admin full, Warden read their hostel's, Student own, Technician read-only
-router.use('/fees', createCrudRouter({
-  model: 'feepayment',
-  idField: 'payment_id',
-  cachePrefix: 'fees',
-  createSchema: createFeeSchema,
-  updateSchema: updateFeeSchema,
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin'],
-    put: ['admin'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Complaints: Admin full, Warden their hostel, Student own, Technician all (can assign)
-router.use('/complaints', createCrudRouter({
-  model: 'complaint',
-  idField: 'complaint_id',
-  cachePrefix: 'complaints',
-  createSchema: createComplaintSchema,
-  updateSchema: updateComplaintSchema,
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-    room: { select: { room_id: true, room_number: true } },
-    technician: { select: { technician_id: true, name: true, specializations: { include: { specialization: true } } } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden', 'student'],
-    put: ['admin', 'warden', 'technician'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.complaint,
-}));
-
-// Mess: Admin full, Warden their hostel only, Student read-only, Technician read-only
-router.use('/messes', createCrudRouter({
-  model: 'mess',
-  idField: 'mess_id',
-  cachePrefix: 'messes',
-  createSchema: createMessSchema,
-  updateSchema: updateMessSchema,
-  includes: { hostel: { select: { hostel_id: true, hostel_name: true } } },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.hostel,
-}));
-
-// Menu: Admin full, Warden their hostel's, Student read-only, Technician read-only
-router.use('/menus', createCrudRouter({
-  model: 'menu',
-  idField: 'menu_id',
-  cachePrefix: 'menus',
-  createSchema: createMenuSchema,
-  updateSchema: updateMenuSchema,
-  includes: { mess: { select: { mess_id: true, mess_name: true } } },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden'],
-    delete: ['admin', 'warden'],
-  },
-}));
-
-// Mess Subscriptions: Admin full, Warden their hostel's, Student own, Technician read-only
-router.use('/mess-subscriptions', createCrudRouter({
-  model: 'mess_subscription',
-  idField: 'subscription_id',
-  cachePrefix: 'mess_subs',
-  createSchema: createMessSubscriptionSchema,
-  updateSchema: updateMessSubscriptionSchema,
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-    mess: { select: { mess_id: true, mess_name: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin', 'warden', 'student'],
-    put: ['admin', 'warden', 'student'],
-    delete: ['admin', 'warden', 'student'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Facilities: Admin full, Warden their hostel's, Student read-only, Technician read-only
-router.use('/facilities', createCrudRouter({
-  model: 'facility',
-  idField: 'facility_id',
-  cachePrefix: 'facilities',
-  createSchema: createFacilitySchema,
-  updateSchema: updateFacilitySchema,
-  includes: { hostel: { select: { hostel_id: true, hostel_name: true } } },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.hostel,
-}));
-
-// Facility Bookings: Admin full, Warden their hostel's, Student own, Technician read-only
-router.use('/facility-bookings', createCrudRouter({
-  model: 'facility_booking',
-  idField: 'booking_id',
-  cachePrefix: 'facility_bookings',
-  createSchema: createFacilityBookingSchema,
-  updateSchema: updateFacilityBookingSchema,
-  includes: {
-    facility: { select: { facility_id: true, facility_name: true } },
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin', 'warden', 'student'],
-    put: ['admin', 'warden', 'student'],
-    delete: ['admin', 'warden', 'student'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Access Logs: Admin all, Warden their hostel's, Student own, Technician read-only
-router.use('/access-logs', createCrudRouter({
-  model: 'accesslog',
-  idField: 'log_id',
-  cachePrefix: 'access_logs',
-  createSchema: createAccessLogSchema,
-  updateSchema: createAccessLogSchema.partial(),
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin'],
-    put: ['admin'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Visitor Logs: Admin all, Warden their hostel's, Student own, Technician read-only
-router.use('/visitor-logs', createCrudRouter({
-  model: 'visitor_log',
-  idField: 'visitor_id',
-  cachePrefix: 'visitor_logs',
-  createSchema: createVisitorLogSchema,
-  updateSchema: updateVisitorLogSchema,
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-    room: { select: { room_id: true, room_number: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Laundry: Admin full, Warden their hostel's, Student read-only, Technician read-only
-router.use('/laundries', createCrudRouter({
-  model: 'laundry',
-  idField: 'laundry_id',
-  cachePrefix: 'laundries',
-  createSchema: createLaundrySchema,
-  updateSchema: updateLaundrySchema,
-  includes: { hostel: { select: { hostel_id: true, hostel_name: true } } },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.hostel,
-}));
-
-// Laundry Requests: Admin full, Warden their hostel's, Student own, Technician read-only
-router.use('/laundry-requests', createCrudRouter({
-  model: 'laundry_request',
-  idField: 'request_id',
-  cachePrefix: 'laundry_requests',
-  createSchema: createLaundryRequestSchema,
-  updateSchema: updateLaundryRequestSchema,
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-    laundry: { select: { laundry_id: true, laundry_name: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin', 'warden', 'student'],
-    put: ['admin', 'warden'],
-    delete: ['admin', 'warden', 'student'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Stores: Admin full, Warden their hostel's, Student read-only, Technician read-only
-router.use('/stores', createCrudRouter({
-  model: 'store',
-  idField: 'store_id',
-  cachePrefix: 'stores',
-  createSchema: createStoreSchema,
-  updateSchema: updateStoreSchema,
-  includes: { hostel: { select: { hostel_id: true, hostel_name: true } } },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.hostel,
-}));
-
-// Store Purchases: Admin full, Warden their hostel's, Student own, Technician read-only
-router.use('/store-purchases', createCrudRouter({
-  model: 'store_purchase',
-  idField: 'purchase_id',
-  cachePrefix: 'store_purchases',
-  createSchema: createStorePurchaseSchema,
-  updateSchema: createStorePurchaseSchema.partial(),
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-    store: { select: { store_id: true, store_name: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin', 'warden', 'student'],
-    put: ['admin', 'warden'],
-    delete: ['admin', 'warden'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Pharmacies: Admin full, Warden read-only, Student read-only, Technician read-only
-router.use('/pharmacies', createCrudRouter({
-  model: 'pharmacy',
-  idField: 'pharmacy_id',
-  cachePrefix: 'pharmacies',
-  createSchema: createPharmacySchema,
-  updateSchema: updatePharmacySchema,
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin'],
-    put: ['admin'],
-    delete: ['admin'],
-  },
-}));
-
-// Pharmacy Visits: Admin full, Warden their hostel's, Student own, Technician read-only
-router.use('/pharmacy-visits', createCrudRouter({
-  model: 'pharmacy_visit',
-  idField: 'visit_id',
-  cachePrefix: 'pharmacy_visits',
-  createSchema: createPharmacyVisitSchema,
-  updateSchema: createPharmacyVisitSchema.partial(),
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-    pharmacy: { select: { pharmacy_id: true, pharmacy_name: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin', 'warden', 'student'],
-    put: ['admin', 'warden'],
-    delete: ['admin', 'warden', 'student'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Restaurants: Admin full, Warden read-only, Student read-only, Technician read-only
-router.use('/restaurants', createCrudRouter({
-  model: 'restaurant',
-  idField: 'restaurant_id',
-  cachePrefix: 'restaurants',
-  createSchema: createRestaurantSchema,
-  updateSchema: updateRestaurantSchema,
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin'],
-    put: ['admin'],
-    delete: ['admin'],
-  },
-}));
-
-// Gyms: Admin full, Warden read-only, Student read-only, Technician read-only
-router.use('/gyms', createCrudRouter({
-  model: 'gym',
-  idField: 'gym_id',
-  cachePrefix: 'gyms',
-  createSchema: createGymSchema,
-  updateSchema: updateGymSchema,
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin'],
-    put: ['admin'],
-    delete: ['admin'],
-  },
-}));
-
-// Gym Memberships: Admin full, Warden their hostel's, Student own, Technician read-only
-router.use('/gym-memberships', createCrudRouter({
-  model: 'gym_membership',
-  idField: 'membership_id',
-  cachePrefix: 'gym_memberships',
-  createSchema: createGymMembershipSchema,
-  updateSchema: updateGymMembershipSchema,
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-    gym: { select: { gym_id: true, gym_name: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin', 'warden', 'student'],
-    put: ['admin', 'warden', 'student'],
-    delete: ['admin', 'warden', 'student'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Ambulances: Admin full, Warden read-only, Student read-only, Technician read-only
-router.use('/ambulances', createCrudRouter({
-  model: 'ambulance_service',
-  idField: 'ambulance_id',
-  cachePrefix: 'ambulances',
-  createSchema: createAmbulanceSchema,
-  updateSchema: updateAmbulanceSchema,
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin'],
-    put: ['admin'],
-    delete: ['admin'],
-  },
-}));
-
-// Emergency Requests: Admin full, Warden their hostel's, Student own, Technician read-all
-router.use('/emergency-requests', createCrudRouter({
-  model: 'emergency_request',
-  idField: 'request_id',
-  cachePrefix: 'emergency_requests',
-  createSchema: createEmergencyRequestSchema,
-  updateSchema: updateEmergencyRequestSchema,
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-    ambulance: true,
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden', 'student'],
-    put: ['admin', 'warden', 'technician'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Notices: Admin full, Warden their hostel's, Student read-only, Technician read-only
-router.use('/notices', createCrudRouter({
-  model: 'notice_board',
-  idField: 'notice_id',
-  cachePrefix: 'notices',
-  createSchema: createNoticeSchema,
-  updateSchema: updateNoticeSchema,
-  includes: { hostel: { select: { hostel_id: true, hostel_name: true } } },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden'],
-    delete: ['admin', 'warden'],
-  },
-  filterByUser: filterByUser.hostel,
-}));
-
-// Maintenance Schedules: Admin full, Warden their hostel's, Student read-only, Technician their assigned
-router.use('/maintenance', createCrudRouter({
-  model: 'maintenance_schedule',
-  idField: 'schedule_id',
-  cachePrefix: 'maintenance',
-  createSchema: createMaintenanceSchema,
-  updateSchema: updateMaintenanceSchema,
-  includes: {
-    hostel: { select: { hostel_id: true, hostel_name: true } },
-    room: { select: { room_id: true, room_number: true } },
-    technician: { select: { technician_id: true, name: true, specializations: { include: { specialization: true } } } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin', 'warden'],
-    put: ['admin', 'warden', 'technician'],
-    delete: ['admin', 'warden'],
-  },
-  filterByUser: filterByUser.maintenance,
-}));
-
-// Guardians: Admin full, Warden their hostel's students' guardians, Student own, Technician read-only
-router.use('/guardians', createCrudRouter({
-  model: 'student_guardian',
-  idField: 'guardian_id',
-  cachePrefix: 'guardians',
-  createSchema: createGuardianSchema,
-  updateSchema: updateGuardianSchema,
-  includes: {
-    student: { select: { student_id: true, reg_no: true, first_name: true, last_name: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student'],
-    post: ['admin', 'warden', 'student'],
-    put: ['admin', 'warden', 'student'],
-    delete: ['admin', 'warden', 'student'],
-  },
-  filterByUser: filterByUser.student,
-}));
-
-// Technicians: Admin full, Warden read their hostel's, Student read-only, Technician their own data
-router.use('/technicians', createCrudRouter({
-  model: 'technician',
-  idField: 'technician_id',
-  cachePrefix: 'technicians',
-  createSchema: createTechnicianSchema,
-  updateSchema: updateTechnicianSchema,
-  includes: {
-    hostel: { select: { hostel_id: true, hostel_name: true } },
-    specializations: { include: { specialization: true } },
-  },
-  allowedRoles: {
-    get: ['admin', 'warden', 'student', 'technician'],
-    post: ['admin'],
-    put: ['admin', 'technician'],
-    delete: ['admin'],
-  },
-  filterByUser: filterByUser.technician,
-}));
-
-module.exports = router;
