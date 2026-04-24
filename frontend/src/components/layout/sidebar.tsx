@@ -1,26 +1,123 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth";
 import {
   Building2,
   LogOut,
   Menu,
+  LayoutDashboard,
+  Users,
+  Bed,
+  DoorOpen,
+  CreditCard,
+  Wrench,
+  Utensils,
+  ShirtIcon,
+  UserCheck,
+  Eye,
+  type LucideIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { getNavItemsForRole } from "@/lib/rbac-config";
-import type { UserRole } from "@/lib/rbac-config";
+
+interface NavItem {
+  title: string;
+  href: string;
+  icon: LucideIcon;
+}
+
+interface NavGroup {
+  group: string;
+  items: NavItem[];
+}
+
+function getNavForRole(role: string): NavGroup[] {
+  const common: NavGroup = {
+    group: "Information",
+    items: [
+      { title: "Mess Info", href: "/dashboard/mess", icon: Utensils },
+      { title: "Laundry Info", href: "/dashboard/laundry", icon: ShirtIcon },
+    ],
+  };
+
+  if (role === "admin") {
+    return [
+      { group: "Overview", items: [{ title: "Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
+      {
+        group: "Management",
+        items: [
+          { title: "Hostels", href: "/dashboard/hostels", icon: Building2 },
+          { title: "Students", href: "/dashboard/students", icon: Users },
+          { title: "Rooms", href: "/dashboard/rooms", icon: DoorOpen },
+          { title: "Beds", href: "/dashboard/beds", icon: Bed },
+          { title: "Allocations", href: "/dashboard/allocations", icon: UserCheck },
+          { title: "Fees", href: "/dashboard/fees", icon: CreditCard },
+          { title: "Complaints", href: "/dashboard/complaints", icon: Wrench },
+          { title: "Technicians", href: "/dashboard/technicians", icon: Users },
+          { title: "Visitors", href: "/dashboard/visitors", icon: Eye },
+        ],
+      },
+      common,
+    ];
+  }
+
+  if (role === "warden") {
+    return [
+      { group: "Overview", items: [{ title: "Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
+      {
+        group: "My Hostel",
+        items: [
+          { title: "Students", href: "/dashboard/students", icon: Users },
+          { title: "Room Occupancy", href: "/dashboard/rooms", icon: DoorOpen },
+          { title: "Fee Tracker", href: "/dashboard/fees", icon: CreditCard },
+          { title: "Fee Defaulters", href: "/dashboard/defaulters", icon: CreditCard },
+          { title: "Complaints", href: "/dashboard/complaints", icon: Wrench },
+          { title: "Visitors", href: "/dashboard/visitors", icon: Eye },
+        ],
+      },
+      common,
+    ];
+  }
+
+  if (role === "student") {
+    return [
+      { group: "Overview", items: [{ title: "Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
+      {
+        group: "My Info",
+        items: [
+          { title: "My Complaints", href: "/dashboard/complaints", icon: Wrench },
+          { title: "My Fees", href: "/dashboard/fees", icon: CreditCard },
+          { title: "My Visitors", href: "/dashboard/visitors", icon: Eye },
+        ],
+      },
+      common,
+    ];
+  }
+
+  if (role === "technician") {
+    return [
+      { group: "Overview", items: [{ title: "Dashboard", href: "/dashboard", icon: LayoutDashboard }] },
+      {
+        group: "My Tasks",
+        items: [
+          { title: "Assigned Complaints", href: "/dashboard/complaints", icon: Wrench },
+        ],
+      },
+      common,
+    ];
+  }
+
+  return [];
+}
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const { signOut } = useClerk();
-  const { user } = useUser();
+  const { user, logout } = useAuth();
 
-  const userRole = (user?.publicMetadata?.role as UserRole) || "student";
-  const navItems = getNavItemsForRole(userRole);
+  const navItems = getNavForRole(user?.role || "student");
 
   return (
     <>
@@ -30,9 +127,9 @@ export function Sidebar() {
           <Building2 className="h-5 w-5 text-primary" />
           <span>DormFlow</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => setIsOpen(!isOpen)}>
+        <button onClick={() => setIsOpen(!isOpen)} className="p-2 rounded-md hover:bg-muted">
           <Menu className="h-5 w-5" />
-        </Button>
+        </button>
       </div>
 
       <div className={`fixed inset-y-0 left-0 z-50 w-64 transform flex-col bg-card border-r border-border transition-transform md:relative md:flex md:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"}`}>
@@ -42,11 +139,15 @@ export function Sidebar() {
         </div>
 
         <div className="flex-1 overflow-y-auto py-4">
-          {/* Role Badge */}
-          <div className="px-4 mb-4">
+          {/* User Info */}
+          <div className="px-4 mb-4 space-y-1">
+            <p className="text-sm font-medium text-foreground truncate">{user?.name || "User"}</p>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
-              {userRole}
+              {user?.role}
             </span>
+            {user?.hostel_name && (
+              <p className="text-xs text-muted-foreground">{user.hostel_name}</p>
+            )}
           </div>
 
           {/* Navigation */}
@@ -58,24 +159,19 @@ export function Sidebar() {
                 </h4>
                 <ul className="space-y-1">
                   {group.items.map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
                     return (
                       <li key={item.href}>
                         <Link
                           href={item.href}
                           onClick={() => setIsOpen(false)}
                           className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${isActive
-                            ? "bg-primary/10 text-primary"
-                            : "text-muted-foreground hover:bg-muted"
+                              ? "bg-primary/10 text-primary"
+                              : "text-muted-foreground hover:bg-muted"
                             }`}
                         >
                           <item.icon className="h-4 w-4" />
                           {item.title}
-                          {item.badge && (
-                            <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                              {typeof item.badge === 'number' && item.badge > 9 ? '9+' : item.badge}
-                            </span>
-                          )}
                         </Link>
                       </li>
                     );
@@ -87,14 +183,13 @@ export function Sidebar() {
         </div>
 
         <div className="p-4 border-t border-border mt-auto">
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-muted-foreground hover:text-foreground"
-            onClick={() => signOut({ redirectUrl: "/" })}
+          <button
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+            onClick={() => { logout(); router.push("/login"); }}
           >
-            <LogOut className="mr-2 h-4 w-4" />
+            <LogOut className="h-4 w-4" />
             Sign Out
-          </Button>
+          </button>
         </div>
       </div>
 

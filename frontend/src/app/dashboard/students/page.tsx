@@ -1,94 +1,74 @@
-import { fetchServerApi } from "@/lib/server-api";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Users, Plus } from "lucide-react";
+"use client";
 
-interface Student {
-    id: string;
-    reg_no: string;
-    first_name: string;
-    last_name: string;
-    email_institutional?: string;
-    course: string;
-    department: string;
-    status: string;
-}
+import { useEffect, useState } from "react";
+import { fetchApi } from "@/lib/api";
+import { Card, CardContent } from "@/components/ui/card";
 
-export default async function StudentsPage() {
-    let students: Student[] = [];
-    try {
-        students = await fetchServerApi<Student[]>("/students") || [];
-    } catch (err) {
-        console.error("Failed to load students:", err);
-    }
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-    // Pre-fill some mock data if DB is empty or fails to connect
-    if (students.length === 0) {
-        students = [
-            { id: "s1", reg_no: "REG2024001", first_name: "Arjun", last_name: "Mehta", course: "B.Tech", department: "Computer Science", status: "Active" },
-            { id: "s2", reg_no: "REG2024002", first_name: "Priya", last_name: "Sharma", course: "B.Tech", department: "Information Technology", status: "Active" },
-            { id: "s3", reg_no: "REG2023045", first_name: "Rahul", last_name: "Verma", course: "MBA", department: "Management", status: "Inactive" },
-        ];
-    }
+export default function StudentsPage() {
+    const [students, setStudents] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchApi("/dashboard/students")
+            .then((data: any) => setStudents(data))
+            .catch(console.error)
+            .finally(() => setLoading(false));
+    }, []);
+
+    if (loading) return <div className="text-muted-foreground py-10 text-center">Loading...</div>;
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Students</h2>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                        Manage student records and their current accommodation status.
-                    </p>
-                </div>
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Student
-                </Button>
+            <div>
+                <h2 className="text-3xl font-bold tracking-tight">Students</h2>
+                <p className="text-muted-foreground mt-1">{students.length} allocated students</p>
             </div>
-
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Student</TableHead>
-                        <TableHead>Reg. No</TableHead>
-                        <TableHead>Course</TableHead>
-                        <TableHead>Department</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {students.map((student) => (
-                        <TableRow key={student.id || student.reg_no}>
-                            <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                        <Users className="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold">{student.first_name} {student.last_name}</div>
-                                        <div className="text-xs text-muted-foreground">{student.email_institutional || `${student.first_name.toLowerCase()}@college.edu`}</div>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>{student.reg_no}</TableCell>
-                            <TableCell>{student.course}</TableCell>
-                            <TableCell className="text-muted-foreground">{student.department}</TableCell>
-                            <TableCell>
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${student.status === 'Active'
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                    : 'bg-muted text-muted-foreground dark:bg-muted/50'
-                                    }`}>
-                                    {student.status}
-                                </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <Button variant="ghost" size="sm">View</Button>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+            <Card>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-muted/50">
+                                <tr>
+                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Reg No</th>
+                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
+                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Dept</th>
+                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Year</th>
+                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Room</th>
+                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Hostel</th>
+                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Mess</th>
+                                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Pending Fees</th>
+                                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Open Comp.</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                                {students.map((s) => (
+                                    <tr key={s.student_id} className="hover:bg-muted/30">
+                                        <td className="px-4 py-3 font-mono text-xs">{s.reg_no}</td>
+                                        <td className="px-4 py-3 font-medium">{s.name}</td>
+                                        <td className="px-4 py-3">{s.department}</td>
+                                        <td className="px-4 py-3">{s.academic_year}</td>
+                                        <td className="px-4 py-3">{s.room_number} (F{s.floor})</td>
+                                        <td className="px-4 py-3">{s.hostel_name}</td>
+                                        <td className="px-4 py-3 text-muted-foreground">{s.mess}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            {Number(s.pending_fees) > 0
+                                                ? <span className="text-orange-600 font-medium">Rs. {Number(s.pending_fees).toLocaleString()}</span>
+                                                : <span className="text-green-600">0</span>}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            {Number(s.open_complaints) > 0
+                                                ? <span className="text-orange-600 font-medium">{s.open_complaints}</span>
+                                                : <span className="text-muted-foreground">0</span>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }
