@@ -10,15 +10,14 @@ services:
       - "3307:3306"
     volumes:
       - ./backend/db:/docker-entrypoint-initdb.d
-      - mysql_data:/var/lib/mysql
+    tmpfs:
+      - /var/lib/mysql
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-hostel}" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-    networks:
-      - hostel_network
 
   backend:
     build:
@@ -44,8 +43,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - hostel_network
 
   frontend:
     build:
@@ -62,12 +59,3 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:${PORT:-5001}/api
     depends_on:
       - backend
-    networks:
-      - hostel_network
-
-networks:
-  hostel_network:
-    driver: bridge
-
-volumes:
-  mysql_data:
