@@ -36,7 +36,7 @@ async function registerPlugins() {
     }),
   });
 
-  // Auth plugin (Clerk)
+  // Auth plugin (cookie-session)
   await app.register(require('./plugins/auth'));
 
   // Routes
@@ -45,7 +45,7 @@ async function registerPlugins() {
 
 // ---- Health checks ----
 app.get('/', async () => {
-  return { status: 'ok', service: 'dormflow-api', version: '2.0.0' };
+  return { status: 'ok', service: 'dormflow-api', version: '3.0.0' };
 });
 
 app.get('/api/health', async (_request, reply) => {
