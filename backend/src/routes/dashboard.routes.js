@@ -248,12 +248,19 @@ module.exports = async function dashboardRoutes(fastify) {
     preHandler: [authorize('admin', 'warden')],
   }, async (request) => {
     const { role, hostel_id } = request.session.user;
-    let sql = 'SELECT * FROM v_room_occupancy';
+    let sql = `SELECT r.room_id, r.room_number, r.floor, r.room_type, r.capacity,
+      h.hostel_name, r.hostel_id,
+      COUNT(b.bed_id) AS total_beds,
+      SUM(CASE WHEN b.occupied=TRUE THEN 1 ELSE 0 END) AS occupied_beds,
+      SUM(CASE WHEN b.occupied=FALSE THEN 1 ELSE 0 END) AS vacant_beds
+      FROM room r JOIN hostel h ON r.hostel_id=h.hostel_id
+      LEFT JOIN bed b ON r.room_id=b.room_id`;
     const params = [];
     if (role === 'warden') {
-      sql += ' WHERE hostel_id=?';
+      sql += ' WHERE r.hostel_id=?';
       params.push(hostel_id);
     }
+    sql += ' GROUP BY r.room_id ORDER BY h.hostel_name, r.room_number';
     const [rows] = await query(sql, params);
     return { success: true, data: rows };
   });
