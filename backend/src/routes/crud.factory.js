@@ -64,8 +64,8 @@ function createCrudRoutes(opts) {
       const order = request.query.order === 'asc' ? 'ASC' : 'DESC';
 
       const baseQuery = listQuery || `SELECT * FROM ${table}`;
-      const sql = `${baseQuery} ORDER BY ${sort} ${order} LIMIT ? OFFSET ?`;
-      const [rows] = await query(sql, [limit, offset]);
+      const sql = `${baseQuery} ORDER BY ${sort} ${order} LIMIT ${limit} OFFSET ${offset}`;
+      const [rows] = await query(sql);
       const [[{ total }]] = await query(`SELECT COUNT(*) AS total FROM ${table}`);
 
       return {
