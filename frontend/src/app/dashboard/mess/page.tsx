@@ -17,35 +17,43 @@ export default function MessPage() {
             .finally(() => setLoading(false));
     }, []);
 
-    if (loading) return <div className="text-muted-foreground py-10 text-center">Loading...</div>;
+    if (loading) return (
+        <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+                <span className="text-sm font-ui text-on-surface-variant">Loading mess info...</span>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5 animate-fade-in">
             <div>
-                <h2 className="text-3xl font-bold tracking-tight">Mess Information</h2>
-                <p className="text-muted-foreground mt-1">{messes.length} messes across hostels</p>
+                <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">Mess Information</h1>
+                <p className="text-sm text-on-surface-variant mt-0.5">{messes.length} messes across hostels</p>
             </div>
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
                 {messes.map((m) => (
-                    <Card key={m.mess_id}>
-                        <CardHeader>
+                    <Card key={m.mess_id} className="relative overflow-hidden">
+                        <div className="absolute top-0 left-0 right-0 h-[3px] bg-tertiary" />
+                        <CardHeader className="pt-5">
                             <CardTitle className="flex items-center justify-between">
                                 <span>{m.mess_name}</span>
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${m.mess_type === "Veg" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
+                                <span className={`text-[11px] px-2 py-0.5 rounded-[var(--radius-xl)] font-ui font-semibold ${m.mess_type === "Veg" ? "bg-success-bg text-success-text" : "bg-danger-bg text-danger-text"}`}>
                                     {m.mess_type}
                                 </span>
                             </CardTitle>
-                            <p className="text-sm text-muted-foreground">{m.hostel_name}</p>
+                            <p className="text-sm text-on-surface-variant">{m.hostel_name}</p>
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div><span className="text-muted-foreground">Monthly Fee:</span> <span className="font-medium">Rs. {Number(m.monthly_fee).toLocaleString()}</span></div>
-                                <div><span className="text-muted-foreground">Capacity:</span> <span className="font-medium">{m.capacity}</span></div>
-                                <div><span className="text-muted-foreground">Manager:</span> <span className="font-medium">{m.manager_name}</span></div>
-                                <div><span className="text-muted-foreground">Rating:</span> <span className="font-medium">{m.hygiene_rating}/5</span></div>
+                                <div><span className="text-on-surface-variant">Monthly Fee:</span> <span className="data-tabular font-medium text-on-surface">Rs. {Number(m.monthly_fee).toLocaleString()}</span></div>
+                                <div><span className="text-on-surface-variant">Capacity:</span> <span className="data-tabular font-medium text-on-surface">{m.capacity}</span></div>
+                                <div><span className="text-on-surface-variant">Manager:</span> <span className="font-medium text-on-surface">{m.manager_name}</span></div>
+                                <div><span className="text-on-surface-variant">Rating:</span> <span className="data-tabular font-medium text-on-surface">{m.hygiene_rating}/5</span></div>
                             </div>
                             {m.menu_description && (
-                                <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3 whitespace-pre-wrap">
+                                <div className="text-xs text-on-surface-variant bg-surface-container rounded-[var(--radius)] p-3 whitespace-pre-wrap">
                                     {m.menu_description}
                                 </div>
                             )}

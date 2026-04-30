@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { fetchApi } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export default function AllocationsPage() {
@@ -10,41 +11,59 @@ export default function AllocationsPage() {
     useEffect(() => {
         fetchApi("/allocations").then((d: any) => setAllocs(d)).catch(console.error).finally(() => setLoading(false));
     }, []);
-    if (loading) return <div className="text-muted-foreground py-10 text-center">Loading...</div>;
+
+    if (loading) return (
+        <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+                <span className="text-sm font-ui text-on-surface-variant">Loading allocations...</span>
+            </div>
+        </div>
+    );
+
     return (
-        <div className="space-y-6">
-            <h2 className="text-3xl font-bold tracking-tight">Allocations</h2>
-            <p className="text-muted-foreground">{allocs.length} allocation records</p>
-            <Card><CardContent className="p-0"><div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                    <thead className="bg-muted/50"><tr>
-                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Student</th>
-                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Hostel</th>
-                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Room</th>
-                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Bed</th>
-                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Start Date</th>
-                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Approved By</th>
-                    </tr></thead>
-                    <tbody className="divide-y divide-border">
-                        {allocs.map((a) => (
-                            <tr key={a.allocation_id} className="hover:bg-muted/30">
-                                <td className="px-4 py-3 font-medium">{a.student_name || a.student_id}</td>
-                                <td className="px-4 py-3">{a.hostel_name || "-"}</td>
-                                <td className="px-4 py-3">{a.room_number || "-"}</td>
-                                <td className="px-4 py-3">{a.bed_number || "-"}</td>
-                                <td className="px-4 py-3 text-muted-foreground">{a.start_date?.split("T")[0]}</td>
-                                <td className="px-4 py-3">
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${a.status === "Active" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400"}`}>
-                                        {a.status}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3 text-muted-foreground">{a.approved_by}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div></CardContent></Card>
+        <div className="space-y-5 animate-fade-in">
+            <div>
+                <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">Allocations</h1>
+                <p className="text-sm text-on-surface-variant mt-0.5">{allocs.length} allocation records</p>
+            </div>
+            <Card className="overflow-hidden">
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-surface-container border-b border-outline-variant sticky top-0 z-10">
+                                <tr>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Student</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Hostel</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Room</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Bed</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Start Date</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Status</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Approved By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {allocs.map((a, i) => (
+                                    <tr key={a.allocation_id} className={`border-b border-outline-variant/50 hover:bg-surface-container-high/40 transition-colors ${i % 2 === 1 ? 'bg-surface-container-lowest' : 'bg-background'}`}>
+                                        <td className="px-4 py-2 data-tabular font-semibold text-on-surface">{a.student_name || a.student_id}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{a.hostel_name || "-"}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{a.room_number || "-"}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{a.bed_number || "-"}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface-variant">{a.start_date?.split("T")[0]}</td>
+                                        <td className="px-4 py-2">
+                                            <StatusBadge
+                                                status={a.status === "Active" ? "active" : "inactive"}
+                                                text={a.status}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface-variant">{a.approved_by}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

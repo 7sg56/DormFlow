@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { fetchApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import type { Status } from "@/components/ui/status-badge";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -59,14 +61,24 @@ export default function ComplaintsPage() {
         }
     };
 
-    if (loading) return <div className="text-muted-foreground py-10 text-center">Loading...</div>;
+    const priorityMap: Record<string, Status> = { "High": "error", "Medium": "warning", "Low": "success" };
+    const statusMap: Record<string, Status> = { "Open": "open", "In Progress": "in-progress", "Resolved": "resolved", "Closed": "success" };
+
+    if (loading) return (
+        <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+                <span className="text-sm font-ui text-on-surface-variant">Loading complaints...</span>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5 animate-fade-in">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Complaints</h2>
-                    <p className="text-muted-foreground mt-1">
+                    <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">Complaints</h1>
+                    <p className="text-sm text-on-surface-variant mt-0.5">
                         {user?.role === "student" ? "Your complaints" :
                             user?.role === "technician" ? "Assigned to you" :
                                 "All complaints in your hostel"}
@@ -75,7 +87,7 @@ export default function ComplaintsPage() {
                 {user?.role === "student" && (
                     <button
                         onClick={() => setShowForm(!showForm)}
-                        className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90"
+                        className="px-4 py-2 bg-primary-container text-on-primary rounded-[var(--radius)] font-ui text-sm font-semibold hover:bg-primary shadow-[var(--shadow-sm)] transition-all duration-150 cursor-pointer"
                     >
                         {showForm ? "Cancel" : "Raise Complaint"}
                     </button>
@@ -83,7 +95,7 @@ export default function ComplaintsPage() {
             </div>
 
             {submitMsg && (
-                <div className="px-3 py-2 rounded-md bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+                <div className="px-3 py-2.5 rounded-[var(--radius)] bg-success-bg text-success-text font-ui text-sm border border-success/20">
                     {submitMsg}
                 </div>
             )}
@@ -94,22 +106,22 @@ export default function ComplaintsPage() {
                     <CardContent>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium mb-1">Description</label>
+                                <label className="label-md text-on-surface-variant mb-1.5 block">Description</label>
                                 <textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm min-h-[100px]"
+                                    className="w-full px-3 py-2.5 rounded-[var(--radius)] border border-outline-variant bg-background font-ui text-sm text-on-surface min-h-[100px] focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all duration-150 placeholder:text-outline"
                                     placeholder="Describe the issue..."
                                     required
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Type</label>
+                                    <label className="label-md text-on-surface-variant mb-1.5 block">Type</label>
                                     <select
                                         value={formData.complaint_type}
                                         onChange={(e) => setFormData({ ...formData, complaint_type: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
+                                        className="w-full px-3 py-2.5 rounded-[var(--radius)] border border-outline-variant bg-background font-ui text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all duration-150"
                                     >
                                         {["Plumbing", "Electrical", "Carpentry", "AC & Appliances", "Maintenance"].map((t) => (
                                             <option key={t} value={t}>{t}</option>
@@ -117,11 +129,11 @@ export default function ComplaintsPage() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Priority</label>
+                                    <label className="label-md text-on-surface-variant mb-1.5 block">Priority</label>
                                     <select
                                         value={formData.priority}
                                         onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
+                                        className="w-full px-3 py-2.5 rounded-[var(--radius)] border border-outline-variant bg-background font-ui text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all duration-150"
                                     >
                                         {["Low", "Medium", "High"].map((p) => (
                                             <option key={p} value={p}>{p}</option>
@@ -129,7 +141,7 @@ export default function ComplaintsPage() {
                                     </select>
                                 </div>
                             </div>
-                            <button type="submit" className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm">
+                            <button type="submit" className="px-4 py-2 bg-primary-container text-on-primary rounded-[var(--radius)] font-ui text-sm font-semibold hover:bg-primary shadow-[var(--shadow-sm)] transition-all duration-150 cursor-pointer">
                                 Submit Complaint
                             </button>
                         </form>
@@ -137,55 +149,49 @@ export default function ComplaintsPage() {
                 </Card>
             )}
 
-            <Card>
+            <Card className="overflow-hidden">
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-muted/50">
+                        <table className="w-full">
+                            <thead className="bg-surface-container border-b border-outline-variant sticky top-0 z-10">
                                 <tr>
-                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Type</th>
-                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Description</th>
-                                    {user?.role !== "student" && <th className="px-4 py-3 text-left font-medium text-muted-foreground">Student</th>}
-                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Room</th>
-                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Priority</th>
-                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Days</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Type</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Description</th>
+                                    {user?.role !== "student" && <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Student</th>}
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Room</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Priority</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Status</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Days</th>
                                     {(user?.role === "technician" || user?.role === "warden" || user?.role === "admin") && (
-                                        <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
+                                        <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Actions</th>
                                     )}
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border">
+                            <tbody>
                                 {complaints.length === 0 ? (
-                                    <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No complaints found</td></tr>
-                                ) : complaints.map((c) => (
-                                    <tr key={c.complaint_id} className="hover:bg-muted/30">
-                                        <td className="px-4 py-3">{c.complaint_type}</td>
-                                        <td className="px-4 py-3 max-w-[200px] truncate">{c.description}</td>
-                                        {user?.role !== "student" && <td className="px-4 py-3">{c.student_name || c.reg_no}</td>}
-                                        <td className="px-4 py-3">{c.room_number || "-"}</td>
-                                        <td className="px-4 py-3">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.priority === "High" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                                                    c.priority === "Medium" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
-                                                        "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                                }`}>{c.priority}</span>
+                                    <tr><td colSpan={8} className="px-4 py-12 text-center text-on-surface-variant text-sm">No complaints found</td></tr>
+                                ) : complaints.map((c, i) => (
+                                    <tr key={c.complaint_id} className={`border-b border-outline-variant/50 hover:bg-surface-container-high/40 transition-colors ${i % 2 === 1 ? 'bg-surface-container-lowest' : 'bg-background'}`}>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{c.complaint_type}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface max-w-[200px] truncate">{c.description}</td>
+                                        {user?.role !== "student" && <td className="px-4 py-2 data-tabular text-on-surface">{c.student_name || c.reg_no}</td>}
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{c.room_number || "-"}</td>
+                                        <td className="px-4 py-2">
+                                            <StatusBadge status={priorityMap[c.priority] || "info"} text={c.priority} />
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.status === "Resolved" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                                                    c.status === "In Progress" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
-                                                        "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
-                                                }`}>{c.status}</span>
+                                        <td className="px-4 py-2">
+                                            <StatusBadge status={statusMap[c.status] || "open"} text={c.status} />
                                         </td>
-                                        <td className="px-4 py-3 text-muted-foreground">{c.days_open ?? "-"}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface-variant">{c.days_open ?? "-"}</td>
                                         {(user?.role === "technician" || user?.role === "warden" || user?.role === "admin") && (
-                                            <td className="px-4 py-3">
+                                            <td className="px-4 py-2">
                                                 {c.status === "Open" && (
                                                     <button onClick={() => updateStatus(c.complaint_id, "In Progress")}
-                                                        className="text-xs px-2 py-1 bg-blue-600 text-white rounded">Start</button>
+                                                        className="font-ui text-xs px-2.5 py-1 bg-info text-white rounded-[var(--radius)] hover:brightness-90 transition-all cursor-pointer">Start</button>
                                                 )}
                                                 {c.status === "In Progress" && (
                                                     <button onClick={() => updateStatus(c.complaint_id, "Resolved")}
-                                                        className="text-xs px-2 py-1 bg-green-600 text-white rounded">Resolve</button>
+                                                        className="font-ui text-xs px-2.5 py-1 bg-success text-white rounded-[var(--radius)] hover:brightness-90 transition-all cursor-pointer">Resolve</button>
                                                 )}
                                             </td>
                                         )}
