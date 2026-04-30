@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import type { UserRole } from "@/lib/auth";
-import { Building2 } from "lucide-react";
+import { Building2, Shield, ChevronRight } from "lucide-react";
 
 const roles: { value: UserRole; label: string; placeholder: string; hint: string }[] = [
     { value: "student", label: "Student", placeholder: "e.g. REG2021001", hint: "Password = your Registration Number" },
@@ -39,31 +39,40 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4">
-            <div className="w-full max-w-md">
+        <div className="min-h-screen flex items-center justify-center bg-surface-dim p-4">
+            {/* Subtle background pattern */}
+            <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,var(--surface-container-low)_0%,var(--surface-dim)_70%)]" />
+
+            <div className="relative w-full max-w-[420px] animate-fade-in">
                 {/* Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center gap-2 mb-4">
-                        <Building2 className="h-8 w-8 text-primary" />
-                        <h1 className="text-3xl font-bold text-foreground">DormFlow</h1>
+                    <div className="inline-flex items-center justify-center gap-2.5 mb-4">
+                        <div className="h-10 w-10 rounded-[var(--radius-md)] bg-primary-container flex items-center justify-center">
+                            <Building2 className="h-5 w-5 text-on-primary-container" />
+                        </div>
+                        <h1 className="font-headline text-[28px] font-bold text-on-surface tracking-tight">DormFlow</h1>
                     </div>
-                    <p className="text-muted-foreground">Hostel Management System</p>
+                    <p className="text-sm text-on-surface-variant">Hostel Management System</p>
                 </div>
 
                 {/* Card */}
-                <div className="bg-card rounded-lg border border-border shadow-sm p-6">
-                    <h2 className="text-lg font-semibold mb-6 text-card-foreground">Sign In</h2>
+                <div className="bg-card rounded-[var(--radius-lg)] border border-outline-variant shadow-[var(--shadow-md)] p-6">
+                    {/* Security badge */}
+                    <div className="flex items-center gap-2 mb-5">
+                        <Shield className="h-4 w-4 text-tertiary" />
+                        <h2 className="font-headline text-base font-semibold text-on-surface">Sign In</h2>
+                    </div>
 
                     {/* Role Tabs */}
-                    <div className="grid grid-cols-4 gap-1 bg-muted p-1 rounded-lg mb-6">
+                    <div className="grid grid-cols-4 gap-1 bg-surface-container p-1 rounded-[var(--radius)] mb-6">
                         {roles.map((role) => (
                             <button
                                 key={role.value}
                                 type="button"
                                 onClick={() => { setSelectedRole(role.value); setError(""); }}
-                                className={`py-2 px-1 text-xs font-medium rounded-md transition-all ${selectedRole === role.value
-                                        ? "bg-card text-foreground shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground"
+                                className={`py-2 px-1 font-ui text-xs font-medium rounded-[var(--radius-sm)] transition-all duration-150 ${selectedRole === role.value
+                                        ? "bg-card text-on-surface shadow-[var(--shadow-sm)]"
+                                        : "text-on-surface-variant hover:text-on-surface"
                                     }`}
                             >
                                 {role.label}
@@ -73,7 +82,7 @@ export default function LoginPage() {
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-foreground mb-1.5">
+                            <label className="label-md text-on-surface-variant mb-1.5 block">
                                 {selectedRole === "admin" ? "Username" : "ID"}
                             </label>
                             <input
@@ -81,13 +90,13 @@ export default function LoginPage() {
                                 value={identifier}
                                 onChange={(e) => setIdentifier(e.target.value)}
                                 placeholder={currentRole.placeholder}
-                                className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                                className="w-full px-3 py-2.5 rounded-[var(--radius)] border border-outline-variant bg-background font-ui text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all duration-150"
                                 required
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-foreground mb-1.5">
+                            <label className="label-md text-on-surface-variant mb-1.5 block">
                                 Password
                             </label>
                             <input
@@ -95,14 +104,14 @@ export default function LoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="Enter password"
-                                className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                                className="w-full px-3 py-2.5 rounded-[var(--radius)] border border-outline-variant bg-background font-ui text-sm text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all duration-150"
                                 required
                             />
-                            <p className="text-xs text-muted-foreground mt-1">{currentRole.hint}</p>
+                            <p className="text-xs text-outline mt-1.5">{currentRole.hint}</p>
                         </div>
 
                         {error && (
-                            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 px-3 py-2 rounded-md">
+                            <div className="text-sm font-ui text-danger-text bg-danger-bg border border-error/20 px-3 py-2.5 rounded-[var(--radius)]">
                                 {error}
                             </div>
                         )}
@@ -110,12 +119,27 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-md font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+                            className="w-full py-2.5 px-4 bg-primary-container text-on-primary rounded-[var(--radius)] font-ui font-semibold text-sm hover:bg-primary active:bg-primary shadow-[var(--shadow-sm)] transition-all duration-150 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
                         >
-                            {loading ? "Signing in..." : "Sign In"}
+                            {loading ? (
+                              <>
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent" />
+                                Signing in...
+                              </>
+                            ) : (
+                              <>
+                                Sign In
+                                <ChevronRight className="h-4 w-4" />
+                              </>
+                            )}
                         </button>
                     </form>
                 </div>
+
+                {/* Footer */}
+                <p className="text-center text-xs text-outline mt-6">
+                    Institutional access only. Unauthorized use is prohibited.
+                </p>
             </div>
         </div>
     );

@@ -35,7 +35,10 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-muted-foreground">Loading dashboard...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+          <span className="text-sm font-ui text-on-surface-variant">Loading dashboard...</span>
+        </div>
       </div>
     );
   }
@@ -43,9 +46,10 @@ export default function DashboardPage() {
   const role = user?.role;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
+      {/* Page Header */}
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">
+        <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">
           {role === "admin"
             ? "System Dashboard"
             : role === "warden"
@@ -53,16 +57,16 @@ export default function DashboardPage() {
               : role === "student"
                 ? "My Dashboard"
                 : "My Tasks"}
-        </h2>
-        <p className="text-muted-foreground mt-1">
+        </h1>
+        <p className="text-sm text-on-surface-variant mt-1">
           Welcome back, {user?.name}.
           {role === "warden" && user?.hostel_name && ` Managing ${user.hostel_name}.`}
           {role === "technician" && user?.specializations && ` Specializations: ${user.specializations}.`}
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Grid — Utility Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {role === "admin" && stats && (
           <>
             <StatCard title="Total Hostels" value={stats.total_hostels} icon={Building2} href="/dashboard/hostels" />
@@ -129,7 +133,7 @@ export default function DashboardPage() {
       {role === "student" && (
         <Card>
           <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <QuickAction href="/dashboard/complaints" icon={Wrench} title="Raise Complaint" />
             <QuickAction href="/dashboard/fees" icon={CreditCard} title="View Fees" />
             <QuickAction href="/dashboard/mess" icon={Building2} title="Mess Info" />
@@ -141,22 +145,37 @@ export default function DashboardPage() {
   );
 }
 
+/**
+ * Utility Card — features a 1px border with a subtle top-accent bar.
+ * Default accent: teal (#005151). Warning: amber. Success: green.
+ */
 function StatCard({ title, value, icon: Icon, href, warning = false, success = false }: {
   title: string; value: string | number; icon: any; href?: string; warning?: boolean; success?: boolean;
 }) {
+  const accentColor = warning
+    ? "bg-warning"
+    : success
+      ? "bg-success"
+      : "bg-tertiary";
+
+  const iconBg = warning
+    ? "bg-warning-bg text-warning-text"
+    : success
+      ? "bg-success-bg text-success-text"
+      : "bg-tertiary-container/20 text-tertiary";
+
   const content = (
-    <Card className={`transition-all hover:shadow-md ${warning ? "border-orange-200 dark:border-orange-800" : success ? "border-green-200 dark:border-green-800" : ""}`}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <div className={`h-8 w-8 rounded-full flex items-center justify-center ${warning ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600" :
-          success ? "bg-green-100 dark:bg-green-900/30 text-green-600" :
-            "bg-primary/10 text-primary"
-          }`}>
+    <Card className={`relative overflow-hidden transition-all duration-150 hover:shadow-[var(--shadow-md)] group ${warning ? "border-warning/30" : success ? "border-success/30" : ""}`}>
+      {/* Teal top-accent bar */}
+      <div className={`absolute top-0 left-0 right-0 h-[3px] ${accentColor}`} />
+      <CardHeader className="flex flex-row items-center justify-between pb-1 pt-5">
+        <CardTitle className="text-xs font-ui font-semibold uppercase tracking-wider text-on-surface-variant">{title}</CardTitle>
+        <div className={`h-8 w-8 rounded-[var(--radius)] flex items-center justify-center shrink-0 ${iconBg}`}>
           <Icon className="h-4 w-4" />
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+      <CardContent className="pt-0">
+        <div className="font-headline text-2xl font-bold text-on-surface tracking-tight data-tabular">{value}</div>
       </CardContent>
     </Card>
   );
@@ -167,9 +186,11 @@ function StatCard({ title, value, icon: Icon, href, warning = false, success = f
 function QuickAction({ href, icon: Icon, title }: { href: string; icon: any; title: string }) {
   return (
     <Link href={href}>
-      <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-border hover:bg-muted transition-colors cursor-pointer text-center">
-        <Icon className="h-6 w-6 mb-2 text-primary" />
-        <span className="text-sm font-medium">{title}</span>
+      <div className="flex flex-col items-center justify-center p-4 rounded-[var(--radius-lg)] border border-outline-variant hover:bg-surface-container-high hover:border-outline transition-all duration-150 cursor-pointer text-center group">
+        <div className="h-9 w-9 rounded-[var(--radius)] bg-tertiary-container/20 flex items-center justify-center mb-2 group-hover:bg-tertiary-container group-hover:text-on-tertiary-container transition-colors">
+          <Icon className="h-4.5 w-4.5 text-tertiary group-hover:text-on-tertiary-container" />
+        </div>
+        <span className="text-xs font-ui font-medium text-on-surface-variant group-hover:text-on-surface">{title}</span>
       </div>
     </Link>
   );
