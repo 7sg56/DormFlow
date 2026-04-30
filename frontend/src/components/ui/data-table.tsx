@@ -92,12 +92,12 @@ export function DataTable<T>({
 
   const SortIcon = ({ column }: { column: Column<T> }) => {
     if (!column.sortable || sortColumn !== column.key) {
-      return <ArrowUpDown className="ml-2 h-4 w-4 opacity-0 hover:opacity-100" />;
+      return <ArrowUpDown className="ml-1.5 h-3 w-3 opacity-30 group-hover:opacity-60" />;
     }
     return sortDirection === 'asc' ? (
-      <ArrowUp className="ml-2 h-4 w-4" />
+      <ArrowUp className="ml-1.5 h-3 w-3 text-primary" />
     ) : (
-      <ArrowDown className="ml-2 h-4 w-4" />
+      <ArrowDown className="ml-1.5 h-3 w-3 text-primary" />
     );
   };
 
@@ -110,16 +110,16 @@ export function DataTable<T>({
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Filter Bar — persistent horizontal layout above the table */}
       {(title || subtitle || searchable) && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            {title && <h2 className="text-2xl font-bold tracking-tight">{title}</h2>}
-            {subtitle && <p className="text-muted-foreground">{subtitle}</p>}
+            {title && <h2 className="font-headline text-xl font-semibold tracking-tight text-on-surface">{title}</h2>}
+            {subtitle && <p className="text-sm text-on-surface-variant mt-0.5">{subtitle}</p>}
           </div>
           {searchable && (
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-outline" />
               <input
                 type="text"
                 placeholder={searchPlaceholder}
@@ -128,24 +128,24 @@ export function DataTable<T>({
                   setSearchQuery(e.target.value);
                   onSearch?.(e.target.value);
                 }}
-                className="pl-9 pr-4 py-2 w-full rounded-md border border-input bg-background ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="pl-9 pr-4 py-2 w-full rounded-[var(--radius)] border border-outline-variant bg-background font-ui text-sm text-on-surface ring-offset-background placeholder:text-outline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary transition-all duration-150"
               />
             </div>
           )}
         </div>
       )}
 
-      {/* Table */}
-      <div className="rounded-md border border-border">
+      {/* Data Table */}
+      <div className="rounded-[var(--radius-lg)] border border-outline-variant overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            {/* Table Header */}
-            <thead className="border-b border-border bg-muted/50">
+            {/* Fixed Header */}
+            <thead className="border-b border-outline-variant bg-surface-container sticky top-0 z-10">
               <tr>
                 {columns.map((column) => (
                   <th
                     key={column.key}
-                    className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground ${column.sortable ? 'cursor-pointer hover:bg-muted' : ''
+                    className={`px-4 py-2.5 text-left label-md text-on-surface-variant group ${column.sortable ? 'cursor-pointer select-none hover:bg-surface-container-high transition-colors' : ''
                       }`}
                     onClick={() => column.sortable && handleSort(column)}
                   >
@@ -158,24 +158,25 @@ export function DataTable<T>({
               </tr>
             </thead>
 
-            {/* Table Body */}
+            {/* Table Body — zebra-striped rows */}
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={columns.length} className="px-4 py-8">
-                    <div className="flex justify-center">
-                      <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  <td colSpan={columns.length} className="px-4 py-12">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+                      <span className="text-sm text-on-surface-variant">Loading data...</span>
                     </div>
                   </td>
                 </tr>
               ) : sortedData.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={columns.length} className="px-4 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
-                      <div className="bg-muted/30 rounded-full p-3">
-                        <Filter className="h-8 w-8 text-muted-foreground" />
+                      <div className="bg-surface-container rounded-full p-3">
+                        <Filter className="h-6 w-6 text-outline" />
                       </div>
-                      <p>{emptyMessage}</p>
+                      <p className="text-sm text-on-surface-variant">{emptyMessage}</p>
                     </div>
                   </td>
                 </tr>
@@ -183,12 +184,12 @@ export function DataTable<T>({
                 sortedData.map((row, rowIndex) => (
                   <tr
                     key={rowIndex}
-                    className={`border-b border-border hover:bg-muted/50 transition-colors ${rowIndex % 2 === 0 ? 'bg-background' : 'bg-muted/20'}`}
+                    className={`border-b border-outline-variant/50 hover:bg-surface-container-high/40 transition-colors ${rowIndex % 2 === 1 ? 'bg-surface-container-lowest' : 'bg-background'}`}
                   >
                     {columns.map((column) => (
                       <td
                         key={column.key}
-                        className={`px-4 py-3 text-sm ${column.className || ''}`}
+                        className={`px-4 py-2 data-tabular text-on-surface ${column.className || ''}`}
                       >
                         {renderCell(row, column)}
                       </td>
@@ -203,21 +204,21 @@ export function DataTable<T>({
 
       {/* Pagination */}
       {!loading && sortedData.length > 10 && (
-        <div className="flex items-center justify-between px-2 py-4">
-          <p className="text-sm text-muted-foreground">
-            Showing <span className="font-medium">1</span> to <span className="font-medium">{Math.min(sortedData.length, 10)}</span> of {sortedData.length} results
+        <div className="flex items-center justify-between px-1 pt-2">
+          <p className="text-xs font-ui text-on-surface-variant">
+            Showing <span className="font-semibold text-on-surface">1</span> to <span className="font-semibold text-on-surface">{Math.min(sortedData.length, 10)}</span> of {sortedData.length} results
           </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled>
+          <div className="flex gap-1">
+            <Button variant="outline" size="icon" disabled>
               <ChevronsLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" disabled>
+            <Button variant="outline" size="icon" disabled>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="icon">
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" disabled>
+            <Button variant="outline" size="icon" disabled>
               <ChevronsRight className="h-4 w-4" />
             </Button>
           </div>
@@ -251,7 +252,7 @@ export function ActionMenuItem({ onClick, children, destructive = false }: { onC
   return (
     <DropdownMenuItem
       onClick={onClick}
-      className={destructive ? 'text-destructive focus:text-destructive' : ''}
+      className={destructive ? 'text-error hover:text-error' : ''}
     >
       {children}
     </DropdownMenuItem>

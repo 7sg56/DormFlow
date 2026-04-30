@@ -4,7 +4,7 @@ const Table = React.forwardRef<
     HTMLTableElement,
     React.HTMLAttributes<HTMLTableElement>
 >(({ className = '', ...props }, ref) => (
-    <div className="relative w-full overflow-auto rounded-md border border-border">
+    <div className="relative w-full overflow-auto rounded-[var(--radius-lg)] border border-outline-variant">
         <table
             ref={ref}
             className={`w-full caption-bottom text-sm ${className}`}
@@ -18,7 +18,11 @@ const TableHeader = React.forwardRef<
     HTMLTableSectionElement,
     React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className = '', ...props }, ref) => (
-    <thead ref={ref} className={`[&_tr]:border-b bg-muted/50 ${className}`} {...props} />
+    <thead
+        ref={ref}
+        className={`[&_tr]:border-b border-outline-variant bg-surface-container sticky top-0 z-10 ${className}`}
+        {...props}
+    />
 ))
 TableHeader.displayName = "TableHeader"
 
@@ -40,7 +44,7 @@ const TableRow = React.forwardRef<
 >(({ className = '', ...props }, ref) => (
     <tr
         ref={ref}
-        className={`border-b border-border transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted ${className}`}
+        className={`border-b border-outline-variant transition-colors hover:bg-surface-container-high/50 data-[state=selected]:bg-surface-container ${className}`}
         {...props}
     />
 ))
@@ -52,7 +56,7 @@ const TableHead = React.forwardRef<
 >(({ className = '', ...props }, ref) => (
     <th
         ref={ref}
-        className={`h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 ${className}`}
+        className={`h-10 px-4 text-left align-middle label-md text-on-surface-variant [&:has([role=checkbox])]:pr-0 ${className}`}
         {...props}
     />
 ))
@@ -64,7 +68,7 @@ const TableCell = React.forwardRef<
 >(({ className = '', ...props }, ref) => (
     <td
         ref={ref}
-        className={`p-4 align-middle [&:has([role=checkbox])]:pr-0 ${className}`}
+        className={`px-4 py-2 align-middle data-tabular [&:has([role=checkbox])]:pr-0 ${className}`}
         {...props}
     />
 ))
