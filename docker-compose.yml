@@ -10,15 +10,14 @@ services:
       - "3307:3306"
     volumes:
       - ./backend/db:/docker-entrypoint-initdb.d
-      - mysql_data:/var/lib/mysql
+    tmpfs:
+      - /var/lib/mysql
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-hostel}" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-    networks:
-      - hostel_network
 
   backend:
     build:
@@ -37,14 +36,13 @@ services:
       - PORT=${PORT:-5001}
       - NODE_ENV=${NODE_ENV:-development}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-}
-      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY:-}
+      - SESSION_SECRET=${SESSION_SECRET:-dormflow-session-secret-viva-2026}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - hostel_network
 
   frontend:
     build:
@@ -52,11 +50,6 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=http://localhost:${PORT:-5001}/api
-        - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
-        - NEXT_PUBLIC_CLERK_SIGN_IN_URL=${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/sign-in}
-        - NEXT_PUBLIC_CLERK_SIGN_UP_URL=${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/sign-up}
-        - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=${NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL:-/dashboard}
-        - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=${NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL:-/dashboard}
     container_name: hostel_frontend
     restart: always
     ports:
@@ -64,20 +57,5 @@ services:
     environment:
       - API_URL=http://backend:${PORT:-5001}/api
       - NEXT_PUBLIC_API_URL=http://localhost:${PORT:-5001}/api
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-}
-      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
-      - NEXT_PUBLIC_CLERK_SIGN_IN_URL=${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/sign-in}
-      - NEXT_PUBLIC_CLERK_SIGN_UP_URL=${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/sign-up}
-      - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=${NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL:-/dashboard}
-      - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=${NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL:-/dashboard}
     depends_on:
       - backend
-    networks:
-      - hostel_network
-
-networks:
-  hostel_network:
-    driver: bridge
-
-volumes:
-  mysql_data:

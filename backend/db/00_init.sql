@@ -2,15 +2,6 @@
 -- HOSTEL MANAGEMENT SYSTEM — SIMPLIFIED SCHEMA
 -- MySQL 8.0+ | UUID Primary Keys | ~18 Tables
 --
--- Removed (not core):
---   ambulance_service, emergency_request, hospital,
---   pharmacy, pharmacy_visit, gym, gym_membership,
---   restaurant, store, store_purchase, store_purchase_item,
---   notice_board, accesslog, facility, facility_operating_day,
---   facility_booking, menu, mess_subscription, laundry_request,
---   maintenance_schedule, student_guardian, audit_log,
---   idempotency_key
---
 -- Merged into existing tables:
 --   student_guardian → guardian columns in student
 --   mess_subscription → mess_id FK in student
@@ -59,17 +50,16 @@ CREATE TABLE hostel (
 -- ============================================================
 CREATE TABLE hostel_warden (
     warden_id           CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
-    clerk_user_id       VARCHAR(64)     NULL,
     hostel_id           CHAR(36)        NOT NULL,
     warden_name         VARCHAR(100)    NOT NULL,
+    password            VARCHAR(100)    NOT NULL,
     warden_phone        VARCHAR(15),
     warden_email        VARCHAR(100),
     assigned_date       DATE,
     is_active           BOOLEAN         DEFAULT TRUE,
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_hw_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE CASCADE,
-    UNIQUE INDEX idx_warden_clerk_uid (clerk_user_id)
+    CONSTRAINT fk_hw_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -119,8 +109,8 @@ CREATE TABLE mess_timing (
 -- ============================================================
 CREATE TABLE student (
     student_id          CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
-    clerk_user_id       VARCHAR(64)     NULL,
     reg_no              VARCHAR(50)     NOT NULL UNIQUE,
+    password            VARCHAR(100)    NOT NULL,
     first_name          VARCHAR(100)    NOT NULL,
     last_name           VARCHAR(100)    NOT NULL,
     date_of_birth       DATE            NOT NULL,
@@ -147,8 +137,7 @@ CREATE TABLE student (
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_student_pincode FOREIGN KEY (pincode) REFERENCES pincode_locality(pincode) ON UPDATE CASCADE,
-    CONSTRAINT fk_student_mess    FOREIGN KEY (mess_id) REFERENCES mess(mess_id) ON DELETE SET NULL,
-    UNIQUE INDEX idx_student_clerk_uid (clerk_user_id)
+    CONSTRAINT fk_student_mess    FOREIGN KEY (mess_id) REFERENCES mess(mess_id) ON DELETE SET NULL
 );
 
 -- ============================================================
@@ -207,8 +196,8 @@ CREATE TABLE specialization (
 -- ============================================================
 CREATE TABLE technician (
     technician_id       CHAR(36)        NOT NULL DEFAULT (UUID()) PRIMARY KEY,
-    clerk_user_id       VARCHAR(64)     NULL,
     name                VARCHAR(100)    NOT NULL,
+    password            VARCHAR(100)    NOT NULL,
     phone               VARCHAR(15),
     email               VARCHAR(100),
     address             TEXT,
@@ -220,8 +209,7 @@ CREATE TABLE technician (
     hostel_id           CHAR(36),
     created_at          DATETIME        DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME        DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_tech_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE SET NULL,
-    UNIQUE INDEX idx_tech_clerk_uid (clerk_user_id)
+    CONSTRAINT fk_tech_hostel FOREIGN KEY (hostel_id) REFERENCES hostel(hostel_id) ON DELETE SET NULL
 );
 
 -- ============================================================

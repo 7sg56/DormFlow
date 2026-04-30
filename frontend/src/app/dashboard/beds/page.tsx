@@ -1,88 +1,67 @@
-import { fetchServerApi } from "@/lib/server-api";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Bed, Plus } from "lucide-react";
+"use client";
+import { useEffect, useState } from "react";
+import { fetchApi } from "@/lib/api";
+import { Card, CardContent } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/status-badge";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-interface Bed {
-    id: string;
-    bed_number: string;
-    room_number: string;
-    hostel_name: string;
-    status: string;
-}
+export default function BedsPage() {
+    const [beds, setBeds] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        fetchApi("/beds").then((d: any) => setBeds(d)).catch(console.error).finally(() => setLoading(false));
+    }, []);
 
-export default async function BedsPage() {
-    let beds: Bed[] = [];
-    try {
-        beds = await fetchServerApi<Bed[]>("/beds") || [];
-    } catch (err) {
-        console.error("Failed to load beds:", err);
-    }
-
-    // Pre-fill some mock data if DB is empty or fails to connect
-    if (beds.length === 0) {
-        beds = [
-            { id: "b1", bed_number: "A", room_number: "101", hostel_name: "Sunrise Boys", status: "Occupied" },
-            { id: "b2", bed_number: "B", room_number: "101", hostel_name: "Sunrise Boys", status: "Available" },
-            { id: "b3", bed_number: "A", room_number: "201", hostel_name: "Moonlight Girls", status: "Available" },
-            { id: "b4", bed_number: "B", room_number: "201", hostel_name: "Moonlight Girls", status: "Under Maintenance" },
-        ];
-    }
+    if (loading) return (
+        <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+                <span className="text-sm font-ui text-on-surface-variant">Loading beds...</span>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Beds</h2>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                        Manage individual beds within rooms.
-                    </p>
-                </div>
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Bed
-                </Button>
+        <div className="space-y-5 animate-fade-in">
+            <div>
+                <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">Beds</h1>
+                <p className="text-sm text-on-surface-variant mt-0.5">{beds.length} beds across all hostels</p>
             </div>
-
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Bed Number</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {beds.map((bed) => (
-                        <TableRow key={bed.id || `${bed.room_number}-${bed.bed_number}`}>
-                            <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center text-primary">
-                                        <Bed className="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold">Room {bed.room_number}</div>
-                                        <div className="text-xs text-muted-foreground">{bed.hostel_name}</div>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>Bed {bed.bed_number}</TableCell>
-                            <TableCell>
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${bed.status === 'Available' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                    bed.status === 'Occupied' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
-                                        'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                                    }`}>
-                                    {bed.status}
-                                </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <Button variant="ghost" size="sm">Edit</Button>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+            <Card className="overflow-hidden">
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-surface-container border-b border-outline-variant sticky top-0 z-10">
+                                <tr>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Hostel</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Room</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Floor</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Bed No</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Type</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {beds.map((b, i) => (
+                                    <tr key={b.bed_id} className={`border-b border-outline-variant/50 hover:bg-surface-container-high/40 transition-colors ${i % 2 === 1 ? 'bg-surface-container-lowest' : 'bg-background'}`}>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{b.hostel_name}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{b.room_number}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{b.floor}</td>
+                                        <td className="px-4 py-2 data-tabular font-semibold text-on-surface">{b.bed_number}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{b.bed_type}</td>
+                                        <td className="px-4 py-2">
+                                            <StatusBadge
+                                                status={b.occupied ? "error" : "success"}
+                                                text={b.occupied ? "Occupied" : "Vacant"}
+                                            />
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

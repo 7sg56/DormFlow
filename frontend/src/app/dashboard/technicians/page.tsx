@@ -1,90 +1,60 @@
-import { fetchServerApi } from "@/lib/server-api";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { UserSquare2, Plus } from "lucide-react";
+"use client";
+import { useEffect, useState } from "react";
+import { fetchApi } from "@/lib/api";
+import { Card, CardContent } from "@/components/ui/card";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-interface Technician {
-    id: string;
-    name: string;
-    specialization: string;
-    phone: string;
-    shift: string;
-    status: string;
-}
+export default function TechniciansPage() {
+    const [techs, setTechs] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        fetchApi("/technicians").then((d: any) => setTechs(d)).catch(console.error).finally(() => setLoading(false));
+    }, []);
 
-export default async function TechniciansPage() {
-    let technicians: Technician[] = [];
-    try {
-        technicians = await fetchServerApi<Technician[]>("/technicians") || [];
-    } catch (err) {
-        console.error("Failed to load technicians:", err);
-    }
-
-    // Pre-fill some mock data if DB is empty or fails to connect
-    if (technicians.length === 0) {
-        technicians = [
-            { id: "t1", name: "Ramesh Singh", specialization: "Plumber", phone: "9876543210", shift: "Morning", status: "Available" },
-            { id: "t2", name: "Suresh Kumar", specialization: "Electrician", phone: "9876543211", shift: "Evening", status: "Busy" },
-            { id: "t3", name: "Mahesh Babu", specialization: "Carpenter", phone: "9876543212", shift: "Night", status: "Available" },
-        ];
-    }
+    if (loading) return (
+        <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+                <span className="text-sm font-ui text-on-surface-variant">Loading technicians...</span>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Technicians</h2>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                        Manage your maintenance staff and their current availability.
-                    </p>
-                </div>
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Technician
-                </Button>
-            </div>
-
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Technician</TableHead>
-                        <TableHead>Specialization</TableHead>
-                        <TableHead>Shift</TableHead>
-                        <TableHead>Available</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {technicians.map((person) => (
-                        <TableRow key={person.id || person.name}>
-                            <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                        <UserSquare2 className="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold">{person.name}</div>
-                                        <div className="text-xs text-muted-foreground">{person.phone}</div>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>{person.specialization}</TableCell>
-                            <TableCell>{person.shift}</TableCell>
-                            <TableCell>
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${person.status === 'Available'
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                    }`}>
-                                    {person.status}
-                                </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <Button variant="ghost" size="sm">Edit</Button>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+        <div className="space-y-5 animate-fade-in">
+            <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">Technicians</h1>
+            <Card className="overflow-hidden">
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-surface-container border-b border-outline-variant sticky top-0 z-10">
+                                <tr>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">ID</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Name</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Hostel</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Phone</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Availability</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Type</th>
+                                    <th className="px-4 py-2.5 text-right label-md text-on-surface-variant">Salary</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {techs.map((t, i) => (
+                                    <tr key={t.technician_id} className={`border-b border-outline-variant/50 hover:bg-surface-container-high/40 transition-colors ${i % 2 === 1 ? 'bg-surface-container-lowest' : 'bg-background'}`}>
+                                        <td className="px-4 py-2 font-mono text-xs text-on-surface">{t.technician_id}</td>
+                                        <td className="px-4 py-2 data-tabular font-semibold text-on-surface">{t.name}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{t.hostel_name}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface-variant">{t.phone}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{t.availability}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{t.employment_type}</td>
+                                        <td className="px-4 py-2 text-right data-tabular text-on-surface">Rs. {Number(t.salary).toLocaleString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

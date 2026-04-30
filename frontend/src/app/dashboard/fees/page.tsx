@@ -1,94 +1,86 @@
-import { fetchServerApi } from "@/lib/server-api";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { CreditCard, Plus } from "lucide-react";
+"use client";
 
-interface Fee {
-    id: string;
-    receipt_no: string;
-    student_name: string;
-    amount: number;
-    paid_date: string;
-    month: string;
-    year: number;
-    status: string;
-}
+import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { fetchApi } from "@/lib/api";
+import { Card, CardContent } from "@/components/ui/card";
+import { FeeStatusBadge } from "@/components/ui/status-badge";
 
-export default async function FeesPage() {
-    let fees: Fee[] = [];
-    try {
-        fees = await fetchServerApi<Fee[]>("/fees") || [];
-    } catch (err) {
-        console.error("Failed to load fees:", err);
-    }
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-    // Pre-fill some mock data if DB is empty or fails to connect
-    if (fees.length === 0) {
-        fees = [
-            { id: "f1", receipt_no: "RCPT-001", student_name: "Arjun Mehta", amount: 4500, paid_date: "2024-03-15", month: "March", year: 2024, status: "Paid" },
-            { id: "f2", receipt_no: "RCPT-002", student_name: "Priya Sharma", amount: 3000, paid_date: "2024-03-14", month: "March", year: 2024, status: "Pending" },
-            { id: "f3", receipt_no: "RCPT-003", student_name: "Rahul Verma", amount: 6500, paid_date: "2024-03-10", month: "March", year: 2024, status: "Overdue" },
-        ];
-    }
+export default function FeesPage() {
+    const { user } = useAuth();
+    const [fees, setFees] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user) return;
+        const endpoint = user.role === "student" ? "/dashboard/student-fees" : "/dashboard/hostel-fees";
+        fetchApi(endpoint)
+            .then((data: any) => setFees(data))
+            .catch(console.error)
+            .finally(() => setLoading(false));
+    }, [user]);
+
+    if (loading) return (
+        <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+                <span className="text-sm font-ui text-on-surface-variant">Loading fees...</span>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Fee Payments</h2>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                        Track student monthly rents and transaction history.
-                    </p>
-                </div>
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Record Payment
-                </Button>
+        <div className="space-y-5 animate-fade-in">
+            <div>
+                <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">Fee Payments</h1>
+                <p className="text-sm text-on-surface-variant mt-0.5">
+                    {user?.role === "student" ? "Your fee payment history" : "Fee payments for your hostel"}
+                </p>
             </div>
-
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Transaction</TableHead>
-                        <TableHead>Student</TableHead>
-                        <TableHead>Period</TableHead>
-                        <TableHead>Amount (₹)</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {fees.map((fee) => (
-                        <TableRow key={fee.id || fee.receipt_no}>
-                            <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                        <CreditCard className="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold">{fee.receipt_no}</div>
-                                        <div className="text-xs text-muted-foreground">{fee.paid_date}</div>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>{fee.student_name}</TableCell>
-                            <TableCell>{fee.month} {fee.year}</TableCell>
-                            <TableCell className="font-medium text-foreground">{fee.amount}</TableCell>
-                            <TableCell>
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${fee.status === 'Paid' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                    fee.status === 'Pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                        'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                                    }`}>
-                                    {fee.status}
-                                </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <Button variant="ghost" size="sm">Details</Button>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+            <Card className="overflow-hidden">
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-surface-container border-b border-outline-variant sticky top-0 z-10">
+                                <tr>
+                                    {user?.role !== "student" && <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Student</th>}
+                                    {user?.role !== "student" && <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Room</th>}
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Month</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Semester</th>
+                                    <th className="px-4 py-2.5 text-right label-md text-on-surface-variant">Due</th>
+                                    <th className="px-4 py-2.5 text-right label-md text-on-surface-variant">Paid</th>
+                                    <th className="px-4 py-2.5 text-right label-md text-on-surface-variant">Balance</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Mode</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Due Date</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {fees.length === 0 ? (
+                                    <tr><td colSpan={10} className="px-4 py-12 text-center text-on-surface-variant text-sm">No fee records</td></tr>
+                                ) : fees.map((f, i) => (
+                                    <tr key={f.payment_id} className={`border-b border-outline-variant/50 hover:bg-surface-container-high/40 transition-colors ${i % 2 === 1 ? 'bg-surface-container-lowest' : 'bg-background'}`}>
+                                        {user?.role !== "student" && <td className="px-4 py-2 data-tabular text-on-surface">{f.student_name}</td>}
+                                        {user?.role !== "student" && <td className="px-4 py-2 data-tabular text-on-surface">{f.room_number}</td>}
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{f.fee_month}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{f.semester}</td>
+                                        <td className="px-4 py-2 text-right data-tabular text-on-surface">Rs. {Number(f.amount_due).toLocaleString()}</td>
+                                        <td className="px-4 py-2 text-right data-tabular text-on-surface">Rs. {Number(f.paid_amount).toLocaleString()}</td>
+                                        <td className="px-4 py-2 text-right data-tabular font-semibold">{Number(f.balance_due) > 0 ? <span className="text-danger-text">Rs. {Number(f.balance_due).toLocaleString()}</span> : <span className="text-on-surface-variant">-</span>}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface-variant">{f.payment_mode || "-"}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface-variant">{f.due_date?.split("T")[0] || "-"}</td>
+                                        <td className="px-4 py-2">
+                                            <FeeStatusBadge status={f.display_status || f.status} />
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

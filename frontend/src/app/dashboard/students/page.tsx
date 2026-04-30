@@ -1,94 +1,81 @@
-import { fetchServerApi } from "@/lib/server-api";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Users, Plus } from "lucide-react";
+"use client";
 
-interface Student {
-    id: string;
-    reg_no: string;
-    first_name: string;
-    last_name: string;
-    email_institutional?: string;
-    course: string;
-    department: string;
-    status: string;
-}
+import { useEffect, useState } from "react";
+import { fetchApi } from "@/lib/api";
+import { Card, CardContent } from "@/components/ui/card";
 
-export default async function StudentsPage() {
-    let students: Student[] = [];
-    try {
-        students = await fetchServerApi<Student[]>("/students") || [];
-    } catch (err) {
-        console.error("Failed to load students:", err);
-    }
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-    // Pre-fill some mock data if DB is empty or fails to connect
-    if (students.length === 0) {
-        students = [
-            { id: "s1", reg_no: "REG2024001", first_name: "Arjun", last_name: "Mehta", course: "B.Tech", department: "Computer Science", status: "Active" },
-            { id: "s2", reg_no: "REG2024002", first_name: "Priya", last_name: "Sharma", course: "B.Tech", department: "Information Technology", status: "Active" },
-            { id: "s3", reg_no: "REG2023045", first_name: "Rahul", last_name: "Verma", course: "MBA", department: "Management", status: "Inactive" },
-        ];
-    }
+export default function StudentsPage() {
+    const [students, setStudents] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchApi("/dashboard/students")
+            .then((data: any) => setStudents(data))
+            .catch(console.error)
+            .finally(() => setLoading(false));
+    }, []);
+
+    if (loading) return (
+        <div className="flex items-center justify-center py-16">
+            <div className="flex flex-col items-center gap-3">
+                <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+                <span className="text-sm font-ui text-on-surface-variant">Loading students...</span>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold tracking-tight">Students</h2>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                        Manage student records and their current accommodation status.
-                    </p>
-                </div>
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Student
-                </Button>
+        <div className="space-y-5 animate-fade-in">
+            <div>
+                <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">Students</h1>
+                <p className="text-sm text-on-surface-variant mt-0.5">{students.length} allocated students</p>
             </div>
-
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Student</TableHead>
-                        <TableHead>Reg. No</TableHead>
-                        <TableHead>Course</TableHead>
-                        <TableHead>Department</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {students.map((student) => (
-                        <TableRow key={student.id || student.reg_no}>
-                            <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                        <Users className="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold">{student.first_name} {student.last_name}</div>
-                                        <div className="text-xs text-muted-foreground">{student.email_institutional || `${student.first_name.toLowerCase()}@college.edu`}</div>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>{student.reg_no}</TableCell>
-                            <TableCell>{student.course}</TableCell>
-                            <TableCell className="text-muted-foreground">{student.department}</TableCell>
-                            <TableCell>
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${student.status === 'Active'
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                    : 'bg-muted text-muted-foreground dark:bg-muted/50'
-                                    }`}>
-                                    {student.status}
-                                </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <Button variant="ghost" size="sm">View</Button>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+            <Card className="overflow-hidden">
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-surface-container border-b border-outline-variant sticky top-0 z-10">
+                                <tr>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Reg No</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Name</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Dept</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Year</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Room</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Hostel</th>
+                                    <th className="px-4 py-2.5 text-left label-md text-on-surface-variant">Mess</th>
+                                    <th className="px-4 py-2.5 text-right label-md text-on-surface-variant">Pending Fees</th>
+                                    <th className="px-4 py-2.5 text-right label-md text-on-surface-variant">Open Comp.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {students.map((s, i) => (
+                                    <tr key={s.student_id} className={`border-b border-outline-variant/50 hover:bg-surface-container-high/40 transition-colors ${i % 2 === 1 ? 'bg-surface-container-lowest' : 'bg-background'}`}>
+                                        <td className="px-4 py-2 font-mono text-xs text-on-surface">{s.reg_no}</td>
+                                        <td className="px-4 py-2 data-tabular font-semibold text-on-surface">{s.name}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{s.department}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{s.academic_year}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{s.room_number} (F{s.floor})</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface">{s.hostel_name}</td>
+                                        <td className="px-4 py-2 data-tabular text-on-surface-variant">{s.mess}</td>
+                                        <td className="px-4 py-2 text-right data-tabular">
+                                            {Number(s.pending_fees) > 0
+                                                ? <span className="text-warning-text font-semibold">Rs. {Number(s.pending_fees).toLocaleString()}</span>
+                                                : <span className="text-success-text">0</span>}
+                                        </td>
+                                        <td className="px-4 py-2 text-right data-tabular">
+                                            {Number(s.open_complaints) > 0
+                                                ? <span className="text-warning-text font-semibold">{s.open_complaints}</span>
+                                                : <span className="text-on-surface-variant">0</span>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

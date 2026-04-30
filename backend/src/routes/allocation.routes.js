@@ -31,8 +31,8 @@ module.exports = async function allocationRoutes(fastify) {
       JOIN room r ON b.room_id = r.room_id
       JOIN hostel h ON r.hostel_id = h.hostel_id
       ORDER BY a.created_at DESC
-      LIMIT ? OFFSET ?
-    `, [limit, offset]);
+      LIMIT ${limit} OFFSET ${offset}
+    `);
 
     const [[{ total }]] = await query('SELECT COUNT(*) AS total FROM allocation');
 

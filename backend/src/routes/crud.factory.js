@@ -59,12 +59,13 @@ function createCrudRoutes(opts) {
       const page = Math.max(1, parseInt(request.query.page) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(request.query.limit) || 20));
       const offset = (page - 1) * limit;
-      const sort = (request.query.sort || 'created_at').replace(/[^a-zA-Z0-9_]/g, '');
+      const sortParam = request.query.sort;
+      const sort = sortParam ? sortParam.replace(/[^a-zA-Z0-9_.]/g, '') : idColumn;
       const order = request.query.order === 'asc' ? 'ASC' : 'DESC';
 
       const baseQuery = listQuery || `SELECT * FROM ${table}`;
-      const sql = `${baseQuery} ORDER BY ${sort} ${order} LIMIT ? OFFSET ?`;
-      const [rows] = await query(sql, [limit, offset]);
+      const sql = `${baseQuery} ORDER BY ${sort} ${order} LIMIT ${limit} OFFSET ${offset}`;
+      const [rows] = await query(sql);
       const [[{ total }]] = await query(`SELECT COUNT(*) AS total FROM ${table}`);
 
       return {

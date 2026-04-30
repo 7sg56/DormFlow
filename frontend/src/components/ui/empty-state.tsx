@@ -21,20 +21,20 @@ export function EmptyState({
   const getIcon = () => {
     switch (icon) {
       case "success":
-        return <Plus className="h-12 w-12 text-primary" />;
+        return <Plus className="h-10 w-10 text-primary" />;
       case "warning":
-        return <AlertCircle className="h-12 w-12 text-yellow-500" />;
+        return <AlertCircle className="h-10 w-10 text-warning" />;
       case "search":
-        return <Search className="h-12 w-12 text-muted-foreground" />;
+        return <Search className="h-10 w-10 text-outline" />;
       case "folder":
-        return <FolderOpen className="h-12 w-12 text-muted-foreground" />;
+        return <FolderOpen className="h-10 w-10 text-outline" />;
       default:
-        return <FileText className="h-12 w-12 text-muted-foreground" />;
+        return <FileText className="h-10 w-10 text-outline" />;
     }
   };
 
   const actionContent = actionLabel && (
-    <div className="mt-6">
+    <div className="mt-5">
       {href ? (
         <Button asChild variant="default">
           <a href={href}>{actionLabel}</a>
@@ -46,14 +46,14 @@ export function EmptyState({
   );
 
   return (
-    <div className="flex min-h-[400px] items-center justify-center p-8">
-      <div className="flex flex-col items-center max-w-md text-center">
-        <div className="bg-muted/30 rounded-full p-6 mb-4">
+    <div className="flex min-h-[360px] items-center justify-center p-8">
+      <div className="flex flex-col items-center max-w-sm text-center">
+        <div className="bg-surface-container rounded-full p-5 mb-4">
           {getIcon()}
         </div>
-        <h3 className="text-lg font-semibold mb-2">{title}</h3>
+        <h3 className="font-headline text-base font-semibold text-on-surface mb-1.5">{title}</h3>
         {description && (
-          <p className="text-muted-foreground text-sm mb-4">{description}</p>
+          <p className="text-sm text-on-surface-variant leading-relaxed">{description}</p>
         )}
         {actionContent}
       </div>

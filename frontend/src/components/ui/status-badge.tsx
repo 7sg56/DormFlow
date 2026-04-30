@@ -8,83 +8,87 @@ export interface StatusBadgeProps {
   size?: "sm" | "md" | "lg";
 }
 
+/**
+ * Status Chips — high-contrast tinted backgrounds with saturated text
+ * for maximum visibility in data-dense administrative grids.
+ */
 export function StatusBadge({ status, text, size = "sm" }: StatusBadgeProps) {
   const config = {
     success: {
-      bgClass: "bg-green-100 dark:bg-green-900/30",
-      textClass: "text-green-700 dark:text-green-400",
+      bgClass: "bg-success-bg",
+      textClass: "text-success-text",
       icon: <CheckCircle2 className="h-3 w-3" />,
       defaultText: "Completed",
     },
     pending: {
-      bgClass: "bg-yellow-100 dark:bg-yellow-900/30",
-      textClass: "text-yellow-700 dark:text-yellow-400",
+      bgClass: "bg-warning-bg",
+      textClass: "text-warning-text",
       icon: <Clock className="h-3 w-3" />,
       defaultText: "Pending",
     },
     warning: {
-      bgClass: "bg-orange-100 dark:bg-orange-900/30",
-      textClass: "text-orange-700 dark:text-orange-400",
+      bgClass: "bg-warning-bg",
+      textClass: "text-warning-text",
       icon: <AlertTriangle className="h-3 w-3" />,
       defaultText: "Warning",
     },
     error: {
-      bgClass: "bg-red-100 dark:bg-red-900/30",
-      textClass: "text-red-700 dark:text-red-400",
+      bgClass: "bg-danger-bg",
+      textClass: "text-danger-text",
       icon: <XCircle className="h-3 w-3" />,
       defaultText: "Error",
     },
     info: {
-      bgClass: "bg-blue-100 dark:bg-blue-900/30",
-      textClass: "text-blue-700 dark:text-blue-400",
+      bgClass: "bg-info-bg",
+      textClass: "text-info-text",
       icon: <Clock className="h-3 w-3" />,
       defaultText: "Info",
     },
     loading: {
-      bgClass: "bg-gray-100 dark:bg-gray-800/30",
-      textClass: "text-gray-700 dark:text-gray-400",
+      bgClass: "bg-surface-container-high",
+      textClass: "text-on-surface-variant",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
       defaultText: "Loading",
     },
     "in-progress": {
-      bgClass: "bg-blue-100 dark:bg-blue-900/30",
-      textClass: "text-blue-700 dark:text-blue-400",
+      bgClass: "bg-info-bg",
+      textClass: "text-info-text",
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
       defaultText: "In Progress",
     },
     open: {
-      bgClass: "bg-blue-100 dark:bg-blue-900/30",
-      textClass: "text-blue-700 dark:text-blue-400",
+      bgClass: "bg-info-bg",
+      textClass: "text-info-text",
       icon: <Clock className="h-3 w-3" />,
       defaultText: "Open",
     },
     resolved: {
-      bgClass: "bg-green-100 dark:bg-green-900/30",
-      textClass: "text-green-700 dark:text-green-400",
+      bgClass: "bg-success-bg",
+      textClass: "text-success-text",
       icon: <CheckCircle2 className="h-3 w-3" />,
       defaultText: "Resolved",
     },
     scheduled: {
-      bgClass: "bg-purple-100 dark:bg-purple-900/30",
-      textClass: "text-purple-700 dark:text-purple-400",
+      bgClass: "bg-[#2e1065]",
+      textClass: "text-[#c4b5fd]",
       icon: <Clock className="h-3 w-3" />,
       defaultText: "Scheduled",
     },
     cancelled: {
-      bgClass: "bg-red-100 dark:bg-red-900/30",
-      textClass: "text-red-700 dark:text-red-400",
+      bgClass: "bg-danger-bg",
+      textClass: "text-danger-text",
       icon: <XCircle className="h-3 w-3" />,
       defaultText: "Cancelled",
     },
     active: {
-      bgClass: "bg-green-100 dark:bg-green-900/30",
-      textClass: "text-green-700 dark:text-green-400",
+      bgClass: "bg-success-bg",
+      textClass: "text-success-text",
       icon: <CheckCircle2 className="h-3 w-3" />,
       defaultText: "Active",
     },
     inactive: {
-      bgClass: "bg-gray-100 dark:bg-gray-800/30",
-      textClass: "text-gray-700 dark:text-gray-400",
+      bgClass: "bg-surface-container-high",
+      textClass: "text-on-surface-variant",
       icon: <XCircle className="h-3 w-3" />,
       defaultText: "Inactive",
     },
@@ -94,14 +98,14 @@ export function StatusBadge({ status, text, size = "sm" }: StatusBadgeProps) {
   const displayText = text || currentConfig.defaultText;
 
   const sizeClasses = {
-    sm: "px-2 py-0.5 text-xs",
-    md: "px-2.5 py-1 text-sm",
-    lg: "px-3 py-1.5 text-base",
+    sm: "px-2 py-0.5 text-[11px]",
+    md: "px-2.5 py-1 text-xs",
+    lg: "px-3 py-1.5 text-sm",
   };
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full font-medium ${sizeClasses[size]} ${currentConfig.bgClass} ${currentConfig.textClass}`}
+      className={`inline-flex items-center gap-1.5 rounded-[var(--radius-xl)] font-ui font-semibold ${sizeClasses[size]} ${currentConfig.bgClass} ${currentConfig.textClass}`}
     >
       {currentConfig.icon}
       <span className="capitalize">{displayText}</span>
